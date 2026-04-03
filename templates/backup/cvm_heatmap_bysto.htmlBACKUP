@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CVM Heatmap (Optimized) - STO {{ sto_name_upper }}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .filter-panel {
+                max-width: 200px !important;
+                max-height: 40vh !important;
+                font-size: 10px !important;
+                padding: 4px !important;
+                opacity: 0.95;
+                overflow-y: auto;
+            }
+            
+            .filter-header {
+                font-size: 12px !important;
+                padding: 4px !important;
+                margin-bottom: 4px !important;
+            }
+            
+            .filter-btn, .odp-toggle {
+                padding: 3px 6px !important;
+                font-size: 9px !important;
+                margin-right: 2px !important;
+            }
+            
+            .segment-filter {
+                margin: 2px 0 !important;
+                font-size: 9px !important;
+                padding: 2px !important;
+            }
+            
+            .segment-checkbox {
+                width: 12px !important;
+                height: 12px !important;
+                margin-right: 4px !important;
+            }
+            
+            .segment-color {
+                width: 8px !important;
+                height: 8px !important;
+                margin-right: 3px !important;
+            }
+            
+            .segment-label {
+                font-size: 8px !important;
+            }
+            
+            .segment-count {
+                font-size: 7px !important;
+            }
+            
+            .info-box {
+                position: fixed !important;
+                bottom: 10px !important;
+                right: 10px !important;
+                max-width: 150px !important;
+                font-size: 9px !important;
+                padding: 4px !important;
+            }
+            
+            .legend {
+                position: fixed !important;
+                bottom: 10px !important;
+                left: 10px !important;
+                max-width: 120px !important;
+                font-size: 8px !important;
+                padding: 4px !important;
+            }
+            
+            .legend i {
+                width: 10px !important;
+                height: 10px !important;
+                margin-right: 4px !important;
+            }
+            
+            .performance-warning {
+                display: none !important;
+            }
+            
+            .leaflet-popup-content {
+                font-size: 10px !important;
+                margin: 6px !important;
+            }
+            
+            .leaflet-control-zoom a {
+                width: 32px !important;
+                height: 32px !important;
+                line-height: 32px !important;
+            }
+        }
+
+        /* Tablet optimizations */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .filter-panel {
+                max-width: 220px !important;
+                font-size: 11px !important;
+            }
+            
+            .filter-btn, .odp-toggle {
+                font-size: 10px !important;
+                padding: 3px 6px !important;
+            }
+        }
+
+        /* Add touch-friendly hover effects */
+        .segment-filter:active {
+            background-color: rgba(0,123,255,0.1) !important;
+            transform: scale(0.98);
+        }
+
+        .filter-btn:active, .odp-toggle:active {
+            transform: scale(0.95);
+        }
+
+        /* Ensure text remains readable */
+        @media (max-width: 480px) {
+            .filter-panel {
+                max-width: 180px !important;
+                max-height: 35vh !important;
+            }
+            
+            .segment-label {
+                font-size: 8px !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 60px;
+            }
+        }
+
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        .info-box {
+            background: white;
+            padding: 4px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 300px;
+            opacity: 0.7;
+        }
+        .filter-panel {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 250px;
+            opacity: 0.95;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .filter-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+        }
+        .filter-controls {
+            margin-bottom: 8px;
+        }
+        .filter-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+        .filter-btn:hover {
+            background: #0056b3;
+        }
+        .filter-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .segment-filter {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+            font-size: 11px;
+        }
+        .segment-checkbox {
+            margin-right: 6px;
+        }
+        .segment-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 4px;
+            border: 1px solid #333;
+        }
+        .segment-label {
+            flex: 1;
+            font-size: 10px;
+        }
+        .segment-count {
+            color: #666;
+            font-size: 9px;
+        }
+        .custom-popup {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        .popup-header {
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        .popup-row {
+            margin: 2px 0;
+        }
+        .popup-label {
+            font-weight: bold;
+            color: #555;
+            display: inline-block;
+            width: 80px;
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            font-size: 14px;
+        }
+        .performance-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 8px;
+            margin: 4px;
+            border-radius: 4px;
+            font-size: 11px;
+            border: 1px solid #ffeeba;
+        }
+        
+        /* Watermark styles */
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10001;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 0;
+            opacity: 0.03;
+        }
+        
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            color: #000;
+            text-shadow: 0 0 1px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+    <script>
+        console.log('Initializing optimized map for {{ data_count }} points...');
+        
+        var map = L.map('map').setView([{{ center_lat }}, {{ center_lon }}], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        var heatData = [];
+        var markerGroups = {};  // Will contain LayerGroups
+        var segmentCounts = {};
+        var isProcessing = false;
+
+        // Utility functions
+        function showLoading(message) {
+            if (document.getElementById('loading-indicator')) return;
+            const loading = document.createElement('div');
+            loading.className = 'loading-overlay';
+            loading.id = 'loading-indicator';
+            loading.textContent = message || 'Processing...';
+            document.body.appendChild(loading);
+            
+            // Disable filter buttons during processing
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.disabled = true);
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+            
+            // Re-enable filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.disabled = false);
+        }
+
+        // Debounced function to prevent rapid clicking
+        let toggleTimeout = null;
+        function debouncedToggle(callback, delay = 150) {
+            if (isProcessing) return;
+            clearTimeout(toggleTimeout);
+            toggleTimeout = setTimeout(callback, delay);
+        }
+
+        // Initialize segment data
+        var segmentData = {{ segment_data_json }};
+        var segmentColors = {{ segment_colors_json }};
+        var batchSize = 2000;
+        
+        // Payment filter states
+        var showNAPayment = true;
+        var showOldPayment = true;
+        var currentMonth = new Date().toISOString().slice(0, 7); // "2025-11"
+
+        // Process each segment
+        Object.keys(segmentData).forEach(function(segmentName) {
+            var items = segmentData[segmentName];
+            var color = segmentColors[segmentName] || '#808080';
+            var safeName = segmentName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+            
+            console.log('Creating LayerGroup for ' + segmentName + ': ' + items.length + ' markers');
+            var layerGroup = L.layerGroup();
+            markerGroups[segmentName] = layerGroup;
+            segmentCounts[segmentName] = items.length;
+            
+            // Process markers in batches
+            (function() {
+                var batchIndex = 0;
+                var totalBatches = Math.ceil(items.length / batchSize);
+                
+                function processBatch() {
+                    var startIdx = batchIndex * batchSize;
+                    var endIdx = Math.min(startIdx + batchSize, items.length);
+                    var batchMarkers = [];
+                    
+                    console.log('Processing batch ' + (batchIndex + 1) + '/' + totalBatches + ' for ' + segmentName);
+                    
+                    for (var i = startIdx; i < endIdx; i++) {
+                        var item = items[i];
+                        var marker = L.circleMarker([item.lat, item.lon], {
+                            radius: 5,
+                            fillColor: color,
+                            color: '#000',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                        
+                        // Store payment data for filtering
+                        marker.paymentData = {
+                            lastPayment: item.last_payment || 'N/A',
+                            segmentName: segmentName
+                        };
+                        
+                        marker.bindPopup(
+                            '<div class="custom-popup">' +
+                            '<div class="popup-header">👥 Customer: <b>' + item.bb_id + '</b></div>' +
+                            '<div class="popup-row"><span class="popup-label">Segment:</span> ' + segmentName + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">STO:</span> ' + item.sto + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">City:</span> ' + item.city + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">LatLong:</span> ' + item.lat.toFixed(6) + ', ' + item.lon.toFixed(6) + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">Last Pay:</span> ' + (item.last_payment || 'N/A') + '</div>' +
+                            '</div>'
+                        );
+                        
+                        batchMarkers.push(marker);
+                        heatData.push([item.lat, item.lon, 1]);
+                    }
+                    
+                    // Add batch to layer group
+                    batchMarkers.forEach(function(marker) {
+                        layerGroup.addLayer(marker);
+                    });
+                    
+                    batchIndex++;
+                    if (batchIndex < totalBatches) {
+                        setTimeout(processBatch, 10);
+                    } else {
+                        console.log('Completed processing ' + segmentName + ': ' + items.length + ' markers');
+                    }
+                }
+                
+                processBatch();
+            })();
+            
+            // Add layer group to map initially
+            layerGroup.addTo(map);
+        });
+
+        // Add heatmap layer
+        if (heatData.length > 0) {
+            console.log('Creating heatmap with ' + heatData.length + ' points...');
+            var heat = L.heatLayer(heatData, {
+                radius: 25,
+                blur: 15,
+                maxZoom: 17,
+                gradient: {
+                    0.4: 'blue',
+                    0.6: 'cyan', 
+                    0.7: 'lime',
+                    0.8: 'yellow',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+        }
+
+        // Add filter panel if needed
+        var showFilters = {{ show_filters_json }};
+        var uniqueSegments = {{ unique_segments_json }};
+        
+        if (showFilters) {
+            var filterControl = L.control({position: 'topleft'});
+            filterControl.onAdd = function (map) {
+                var div = L.DomUtil.create('div', 'filter-panel');
+                div.innerHTML = '<div class="filter-header">🎯 Segment Filters</div>';
+                
+                // Add performance warning for large datasets
+                if (segmentData && Object.values(segmentData).reduce((a, b) => a + b.length, 0) > 10000) {
+                    div.innerHTML += '<div class="performance-warning">⚠️ Large dataset. Filtering may take a few seconds.</div>';
+                }
+                
+                div.innerHTML += 
+                    '<div class="filter-controls">' +
+                    '<button class="filter-btn" onclick="selectAllSegments()">All</button>' +
+                    '<button class="filter-btn" onclick="deselectAllSegments()">None</button>' +
+                    '</div>';
+                
+                // Add checkbox for each segment
+                uniqueSegments.forEach(function(segment) {
+                    var color = segmentColors[segment.name] || '#808080';
+                    var safeId = segment.name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+                    
+                    div.innerHTML += 
+                        '<div class="segment-filter">' +
+                        '<input type="checkbox" class="segment-checkbox" id="segment_' + safeId + '" checked onchange="toggleSegment(\'' + segment.name.replace(/'/g, "\\'") + '\')"/>' +
+                        '<div class="segment-color" style="background-color: ' + color + '"></div>' +
+                        '<label class="segment-label" for="segment_' + safeId + '">' + segment.displayName + '</label>' +
+                        '<span class="segment-count">(' + segment.count.toLocaleString() + ')</span>' +
+                        '</div>';
+                });
+                
+                // Add Last Pay filters
+                div.innerHTML += '<div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid #ddd;">' +
+                    '<div class="filter-header" style="font-size: 11px; margin-bottom: 5px;">💳 Last Pay Filters</div>' +
+                    '<div class="segment-filter">' +
+                    '<input type="checkbox" class="segment-checkbox" id="toggle_na_payment" checked onchange="toggleNAPayment()"/>' +
+                    '<label class="segment-label" for="toggle_na_payment">Show N/A Payment</label>' +
+                    '</div>' +
+                    '<div class="segment-filter">' +
+                    '<input type="checkbox" class="segment-checkbox" id="toggle_old_payment" checked onchange="toggleOldPayment()"/>' +
+                    '<label class="segment-label" for="toggle_old_payment">Show Old Month Pay</label>' +
+                    '</div>' +
+                    '</div>';
+                
+                return div;
+            };
+            filterControl.addTo(map);
+        }
+        
+        // Helper function for sanitizing segment names in JavaScript
+        function sanitizeSegmentName(segmentName) {
+            return segmentName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+        }
+        
+        // Filter functions
+        function toggleSegment(segmentName) {
+            debouncedToggle(function() {
+                isProcessing = true;
+                showLoading('Updating ' + segmentName + '...');
+                
+                setTimeout(function() {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (layerGroup) {
+                        if (checkbox.checked) {
+                            if (!map.hasLayer(layerGroup)) {
+                                map.addLayer(layerGroup);
+                            }
+                        } else {
+                            if (map.hasLayer(layerGroup)) {
+                                map.removeLayer(layerGroup);
+                            }
+                        }
+                    }
+                    
+                    isProcessing = false;
+                    hideLoading();
+                }, 50);
+            }, 100);
+        }
+        
+        function selectAllSegments() {
+            if (isProcessing) return;
+            isProcessing = true;
+            showLoading('Showing all segments...');
+            
+            setTimeout(function() {
+                Object.keys(markerGroups).forEach(function(segmentName) {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        if (layerGroup && !map.hasLayer(layerGroup)) {
+                            map.addLayer(layerGroup);
+                        }
+                    }
+                });
+                
+                isProcessing = false;
+                hideLoading();
+            }, 100);
+        }
+        
+        function deselectAllSegments() {
+            if (isProcessing) return;
+            isProcessing = true;
+            showLoading('Hiding all segments...');
+            
+            setTimeout(function() {
+                Object.keys(markerGroups).forEach(function(segmentName) {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        if (layerGroup && map.hasLayer(layerGroup)) {
+                            map.removeLayer(layerGroup);
+                        }
+                    }
+                });
+                
+                isProcessing = false;
+                hideLoading();
+            }, 100);
+        }
+        
+        // Payment filter functions
+        function shouldShowMarker(marker) {
+            if (!marker.paymentData) return true;
+            
+            var lastPayment = marker.paymentData.lastPayment;
+            
+            // Check N/A filter
+            if (lastPayment === 'N/A' && !showNAPayment) {
+                return false;
+            }
+            
+            // Check old payment filter
+            if (lastPayment !== 'N/A' && !showOldPayment) {
+                var paymentMonth = lastPayment.slice(0, 7); // "2025-11-13" -> "2025-11"
+                if (paymentMonth !== currentMonth) {
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+        
+        function applyPaymentFilters() {
+            Object.keys(markerGroups).forEach(function(segmentName) {
+                var layerGroup = markerGroups[segmentName];
+                if (!layerGroup) return;
+                
+                var safeId = sanitizeSegmentName(segmentName);
+                var checkbox = document.getElementById('segment_' + safeId);
+                var segmentEnabled = checkbox && checkbox.checked;
+                
+                layerGroup.eachLayer(function(marker) {
+                    var shouldShow = segmentEnabled && shouldShowMarker(marker);
+                    
+                    if (shouldShow) {
+                        if (!layerGroup.hasLayer(marker)) {
+                            layerGroup.addLayer(marker);
+                        }
+                    } else {
+                        if (layerGroup.hasLayer(marker)) {
+                            layerGroup.removeLayer(marker);
+                        }
+                    }
+                });
+            });
+        }
+        
+        function toggleNAPayment() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            var checkbox = document.getElementById('toggle_na_payment');
+            showNAPayment = checkbox.checked;
+            
+            showLoading(showNAPayment ? 'Showing N/A payments...' : 'Hiding N/A payments...');
+            
+            setTimeout(function() {
+                applyPaymentFilters();
+                isProcessing = false;
+                hideLoading();
+            }, 50);
+        }
+        
+        function toggleOldPayment() {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            var checkbox = document.getElementById('toggle_old_payment');
+            showOldPayment = checkbox.checked;
+            
+            showLoading(showOldPayment ? 'Showing old payments...' : 'Hiding old payments...');
+            
+            setTimeout(function() {
+                applyPaymentFilters();
+                isProcessing = false;
+                hideLoading();
+            }, 50);
+        }
+
+        var info = L.control({position: 'topright'});
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info-box');
+            this._div.innerHTML = '<b>Region:</b> {{ region_name_upper }}<br>' +
+                '<b>Branch:</b> {{ branch_name_upper }}<br>' +
+                '<b>STO:</b> {{ sto_name_upper }}<br>' +
+                '<b>Segment:</b> {{ segment_display }}<br>' +
+                '<b>Total Customers:</b> {{ data_count_formatted }}<br>' +
+                '<small>⚡ Optimized for large datasets</small>';
+            return this._div;
+        };
+        info.addTo(map);
+
+        // Fit bounds with performance consideration
+        if (heatData.length > 0) {
+            console.log('Setting map bounds...');
+            // For very large datasets, use a simpler bounds calculation
+            var bounds = L.latLngBounds([[{{ min_lat }}, {{ min_lon }}], [{{ max_lat }}, {{ max_lon }}]]);
+            map.fitBounds(bounds, {padding: [20, 20]});
+        }
+        
+        // 🚀 Mobile optimization JavaScript
+        (function() {
+            var isMobile = window.innerWidth <= 768;
+            console.log('Mobile device detected:', isMobile);
+            
+            if (isMobile) {
+                setTimeout(function() {
+                    var filterHeader = document.querySelector('.filter-header');
+                    if (filterHeader) {
+                        console.log('Adding mobile toggle to filter header');
+                        
+                        filterHeader.style.cursor = 'pointer';
+                        filterHeader.style.userSelect = 'none';
+                        filterHeader.style.borderBottom = '2px solid #007bff';
+                        filterHeader.innerHTML += ' <span id="filter-toggle" style="float: right; font-size: 12px; color: #007bff;">▼</span>';
+                        
+                        filterHeader.onclick = function() {
+                            var filterPanel = document.querySelector('.filter-panel');
+                            var filterControls = filterPanel.querySelector('.filter-controls');
+                            var segmentFilters = filterPanel.querySelectorAll('.segment-filter');
+                            var performanceWarning = filterPanel.querySelector('.performance-warning');
+                            var toggleIcon = document.getElementById('filter-toggle');
+                            
+                            var isHidden = filterControls.style.display === 'none';
+                            
+                            if (isHidden) {
+                                filterControls.style.display = 'block';
+                                segmentFilters.forEach(function(filter) { filter.style.display = 'flex'; });
+                                if (performanceWarning) performanceWarning.style.display = 'block';
+                                toggleIcon.textContent = '▼';
+                                toggleIcon.style.color = '#007bff';
+                                filterPanel.style.maxHeight = '40vh';
+                                console.log('Filter panel expanded');
+                            } else {
+                                filterControls.style.display = 'none';
+                                segmentFilters.forEach(function(filter) { filter.style.display = 'none'; });
+                                if (performanceWarning) performanceWarning.style.display = 'none';
+                                toggleIcon.textContent = '▶';
+                                toggleIcon.style.color = '#28a745';
+                                filterPanel.style.maxHeight = '32px';
+                                console.log('Filter panel collapsed');
+                            }
+                        };
+                        
+                        // Start collapsed on mobile
+                        setTimeout(function() { filterHeader.click(); }, 500);
+                    }
+                }, 1000);
+                
+                // Auto-hide when map is clicked
+                map.on('click', function() {
+                    setTimeout(function() {
+                        var filterControls = document.querySelector('.filter-controls');
+                        if (filterControls && filterControls.style.display !== 'none') {
+                            console.log('Auto-hiding filter panel after map interaction');
+                            var filterHeader = document.querySelector('.filter-header');
+                            if (filterHeader) filterHeader.click();
+                        }
+                    }, 800);
+                });
+            }
+        })();
+
+        // Double-tap to reset filters
+        (function() {
+            var lastTap = 0;
+            setTimeout(function() {
+                var filterHeader = document.querySelector('.filter-header');
+                if (filterHeader) {
+                    filterHeader.addEventListener('touchend', function(e) {
+                        var currentTime = new Date().getTime();
+                        var tapLength = currentTime - lastTap;
+                        
+                        if (tapLength < 500 && tapLength > 0) {
+                            e.preventDefault();
+                            console.log('Double-tap detected - resetting filters');
+                            
+                            var originalBg = filterHeader.style.backgroundColor;
+                            var originalColor = filterHeader.style.color;
+                            
+                            filterHeader.style.backgroundColor = '#28a745';
+                            filterHeader.style.color = 'white';
+                            
+                            setTimeout(function() {
+                                filterHeader.style.backgroundColor = originalBg;
+                                filterHeader.style.color = originalColor;
+                                
+                                if (typeof selectAllSegments === 'function') {
+                                    selectAllSegments();
+                                }
+                                
+                                showLoading('✓ All filters reset');
+                                setTimeout(hideLoading, 1000);
+                            }, 300);
+                        }
+                        lastTap = currentTime;
+                    });
+                }
+            }, 1000);
+        })();
+
+        // Prevent zoom on double-tap for filter elements
+        document.addEventListener('touchend', function(e) {
+            if (e.target.closest('.filter-panel')) {
+                e.preventDefault();
+                return false;
+            }
+        }, { passive: false });
+
+        // Handle orientation change
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() {
+                var isMobile = window.innerWidth <= 768;
+                console.log('Orientation changed. Mobile:', isMobile);
+                
+                if (isMobile) {
+                    var filterPanel = document.querySelector('.filter-panel');
+                    var filterControls = filterPanel?.querySelector('.filter-controls');
+                    
+                    if (filterControls && filterControls.style.display !== 'none') {
+                        var filterHeader = document.querySelector('.filter-header');
+                        if (filterHeader) filterHeader.click();
+                    }
+                }
+            }, 500);
+        });
+        
+        console.log('Map initialization complete with mobile optimization!');
+    </script>
+</body>
+</html>

@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Location Churn Risk Heatmap - {{ risk_level_upper }}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        /* Mobile optimizations with bottom placement */
+        @media (max-width: 768px) {
+            .filter-panel {
+                max-width: 220px !important;
+                max-height: 35vh !important;
+                font-size: 10px !important;
+                padding: 6px !important;
+                opacity: 0.95;
+                overflow-y: auto;
+            }
+            
+            .filter-header {
+                font-size: 11px !important;
+                padding: 4px !important;
+                margin-bottom: 4px !important;
+            }
+            
+            .filter-btn, .odp-toggle {
+                padding: 3px 5px !important;
+                font-size: 9px !important;
+                margin-right: 2px !important;
+            }
+            
+            .segment-filter {
+                margin: 2px 0 !important;
+                font-size: 10px !important;
+                padding: 2px !important;
+            }
+            
+            .segment-checkbox {
+                width: 12px !important;
+                height: 12px !important;
+                margin-right: 4px !important;
+            }
+            
+            .segment-color {
+                width: 8px !important;
+                height: 8px !important;
+                margin-right: 3px !important;
+            }
+            
+            .segment-label {
+                font-size: 9px !important;
+            }
+            
+            .segment-count {
+                font-size: 8px !important;
+            }
+            
+            .info-box {
+                position: fixed !important;
+                top: 10px !important;
+                right: 10px !important;
+                max-width: 160px !important;
+                font-size: 9px !important;
+                padding: 4px !important;
+            }
+            
+            .leaflet-popup-content {
+                font-size: 10px !important;
+                margin: 6px !important;
+            }
+            
+            .leaflet-control-zoom a {
+                width: 32px !important;
+                height: 32px !important;
+                line-height: 32px !important;
+            }
+        }
+
+        /* Tablet optimizations */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .filter-panel {
+                max-width: 240px !important;
+                font-size: 11px !important;
+            }
+            
+            .filter-btn, .odp-toggle {
+                font-size: 10px !important;
+                padding: 3px 6px !important;
+            }
+        }
+
+        /* Base styles */
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        
+        .info-box {
+            background: white;
+            padding: 6px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 300px;
+            opacity: 0.9;
+        }
+        
+        .filter-panel {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 260px;
+            opacity: 0.95;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .filter-header {
+            font-weight: bold;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .filter-controls {
+            margin-bottom: 8px;
+        }
+        
+        .filter-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+        
+        .filter-btn:hover {
+            background: #c82333;
+        }
+        
+        .filter-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .odp-toggle {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        
+        .odp-toggle:hover {
+            background: #218838;
+        }
+        
+        .odp-toggle.active {
+            background: #155724;
+        }
+        
+        .segment-filter {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+            font-size: 11px;
+            padding: 1px;
+            border-radius: 2px;
+        }
+        
+        .segment-filter:hover {
+            background-color: rgba(220,53,69,0.1);
+        }
+        
+        .segment-checkbox {
+            margin-right: 6px;
+        }
+        
+        .segment-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 4px;
+            border: 1px solid #333;
+        }
+        
+        .segment-label {
+            flex: 1;
+            font-size: 10px;
+        }
+        
+        .segment-count {
+            color: #666;
+            font-size: 9px;
+        }
+        
+        .custom-popup {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .popup-header {
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .popup-row {
+            margin: 2px 0;
+        }
+        
+        .popup-label {
+            font-weight: bold;
+            color: #555;
+            display: inline-block;
+            width: 80px;
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            font-size: 14px;
+        }
+        
+        .performance-warning {
+            background: #fff3cd;
+            color: #856404;
+            padding: 6px;
+            margin: 4px;
+            border-radius: 4px;
+            font-size: 10px;
+            border: 1px solid #ffeeba;
+        }
+        
+        /* Collapsible content */
+        .filter-content {
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+        }
+        
+        .filter-content.collapsed {
+            max-height: 0;
+        }
+        
+        /* Touch-friendly hover effects */
+        .segment-filter:active {
+            background-color: rgba(220,53,69,0.2) !important;
+            transform: scale(0.98);
+        }
+
+        .filter-btn:active, .odp-toggle:active {
+            transform: scale(0.95);
+        }
+
+        /* Ensure text remains readable on very small screens */
+        @media (max-width: 480px) {
+            .filter-panel {
+                max-width: 200px !important;
+                max-height: 30vh !important;
+            }
+            
+            .segment-label {
+                font-size: 8px !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 70px;
+            }
+            
+            .filter-header {
+                font-size: 10px !important;
+            }
+        }
+        
+        /* Watermark styles */
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10001;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 0;
+            opacity: 0.03;
+        }
+        
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            color: #000;
+            text-shadow: 0 0 1px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+    <script>
+        console.log('Initializing location-based churn risk map...');
+        
+        var map = L.map('map').setView([{{ center_lat }}, {{ center_lon }}], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        var heatData = [];
+        var markerGroups = {};
+        var odpMarkers = L.layerGroup();
+        var segmentCounts = {};
+        var isProcessing = false;
+        var showODP = true;
+
+        // Add user location marker
+        var userMarker = L.marker([{{ center_lat }}, {{ center_lon }}], {
+            icon: L.icon({
+                iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iNCIgZmlsbD0iIzAwOEZGRiIgc3Ryb2tlPSIjRkZGRkZGIiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10],
+                popupAnchor: [0, -10]
+            })
+        }).addTo(map);
+        
+        userMarker.bindPopup('📍 Lokasi Anda<br><small>{{ center_lat }}, {{ center_lon }}</small>');
+
+        // Utility functions
+        function showLoading(message) {
+            if (document.getElementById('loading-indicator')) return;
+            const loading = document.createElement('div');
+            loading.className = 'loading-overlay';
+            loading.id = 'loading-indicator';
+            loading.textContent = message || 'Processing...';
+            document.body.appendChild(loading);
+            
+            document.querySelectorAll('.filter-btn, .odp-toggle').forEach(btn => btn.disabled = true);
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+            
+            document.querySelectorAll('.filter-btn, .odp-toggle').forEach(btn => btn.disabled = false);
+        }
+
+        // Debounced function to prevent rapid clicking
+        let toggleTimeout = null;
+        function debouncedToggle(callback, delay = 150) {
+            if (isProcessing) return;
+            clearTimeout(toggleTimeout);
+            toggleTimeout = setTimeout(callback, delay);
+        }
+
+        // Initialize churn segment data
+        var churnSegmentData = {{ churn_segment_data_json }};
+        var segmentColors = {{ segment_colors_json }};
+        var riskColors = {{ risk_colors_json }};
+        var batchSize = 1000;
+
+        // Process each churn segment
+        Object.keys(churnSegmentData).forEach(function(segmentName) {
+            var items = churnSegmentData[segmentName];
+            var safeName = segmentName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+            
+            console.log('Creating LayerGroup for churn segment ' + segmentName + ': ' + items.length + ' markers');
+            var layerGroup = L.layerGroup();
+            markerGroups[segmentName] = layerGroup;
+            segmentCounts[segmentName] = items.length;
+            
+            // Process markers in batches
+            (function() {
+                var batchIndex = 0;
+                var totalBatches = Math.ceil(items.length / batchSize);
+                
+                function processBatch() {
+                    var startIdx = batchIndex * batchSize;
+                    var endIdx = Math.min(startIdx + batchSize, items.length);
+                    var batchMarkers = [];
+                    
+                    for (var i = startIdx; i < endIdx; i++) {
+                        var item = items[i];
+                        
+                        var color = item.color || segmentColors[segmentName] || '#808080';
+                        
+                        var marker = L.circleMarker([item.lat, item.lon], {
+                            radius: 6,
+                            fillColor: color,
+                            color: '#000',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                        
+                        // Enhanced popup with revenue information
+                        var popupContent = 
+                            '<div class="custom-popup">' +
+                            '<div class="popup-header">🚨 Churn Risk: <b>' + item.bb_id + '</b></div>' +
+                            '<div class="popup-row"><span class="popup-label">Segment:</span> ' + segmentName + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">Risk Level:</span> ' + item.risk_level + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">STO:</span> ' + item.sto + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">City:</span> ' + item.city + '</div>';
+                        
+                        // Add revenue info if available
+                        if (item.revenue !== undefined && item.revenue > 0) {
+                            popupContent += '<div class="popup-row"><span class="popup-label">Revenue:</span> Rp ' + item.revenue.toLocaleString() + '</div>';
+                        }
+                        
+                        // Add cluster info if available
+                        if (item.cluster_id !== undefined) {
+                            if (item.cluster_id !== -1) {
+                                var clusterInfo = '🎯 Cluster: ' + item.cluster_id;
+                                if (item.cluster_rank) {
+                                    clusterInfo += ' (Rank ' + item.cluster_rank + ')';
+                                }
+                                if (item.cluster_total_revenue) {
+                                    clusterInfo += '<br>Cluster Revenue: Rp ' + item.cluster_total_revenue.toLocaleString();
+                                }
+                                popupContent += '<div style="background: #e9ecef; padding: 3px; border-radius: 3px; margin-top: 5px;">' + clusterInfo + '</div>';
+                            } else {
+                                popupContent += '<div style="background: #f8f9fa; padding: 3px; border-radius: 3px; margin-top: 5px;">👤 Isolated User</div>';
+                            }
+                        }
+                        
+                        popupContent += '<div class="popup-row"><span class="popup-label">LatLong:</span> ' + item.lat.toFixed(6) + ', ' + item.lon.toFixed(6) + '</div>' +
+                            '</div>';
+                        
+                        marker.bindPopup(popupContent);
+                        
+                        batchMarkers.push(marker);
+                        
+                        var heatWeight = item.risk_level === 'HIGH' ? 3 : 1;
+                        heatData.push([item.lat, item.lon, heatWeight]);
+                    }
+                    
+                    batchMarkers.forEach(function(marker) {
+                        layerGroup.addLayer(marker);
+                    });
+                    
+                    batchIndex++;
+                    if (batchIndex < totalBatches) {
+                        setTimeout(processBatch, 5);
+                    }
+                }
+                
+                processBatch();
+            })();
+            
+            layerGroup.addTo(map);
+        });
+
+        // Initialize ODP data
+        var odpData = {{ odp_data_json }};
+        var odpColorMap = {{ odp_color_map_json }};
+
+        // Create ODP markers
+        odpData.forEach(function(item) {
+            var color = odpColorMap[item.occ_status] || '#808080';
+            
+            var marker = L.circleMarker([item.lat, item.lon], {
+                radius: 4,
+                fillColor: color,
+                color: '#FFFFFF',
+                weight: 2,
+                opacity: 1,
+                fillOpacity: 0.7
+            });
+            
+            marker.bindPopup(
+                '<div class="custom-popup">' +
+                '<div class="popup-header">🏠 ODP: <b>' + item.odp_name + '</b></div>' +
+                '<div class="popup-row"><span class="popup-label">Status:</span> ' + item.occ_status + '</div>' +
+                '<div class="popup-row"><span class="popup-label">LOS:</span> ' + item.los_months + ' months</div>' +
+                '<div class="popup-row"><span class="popup-label">LatLong:</span> ' + item.lat.toFixed(6) + ', ' + item.lon.toFixed(6) + '</div>' +
+                '</div>'
+            );
+            
+            odpMarkers.addLayer(marker);
+        });
+
+        if (showODP) {
+            odpMarkers.addTo(map);
+        }
+
+        // Add heatmap layer
+        if (heatData.length > 0) {
+            console.log('Creating location churn risk heatmap with ' + heatData.length + ' points...');
+            var heat = L.heatLayer(heatData, {
+                radius: 20,
+                blur: 10,
+                maxZoom: 17,
+                gradient: {
+                    0.4: 'blue',
+                    0.6: 'cyan', 
+                    0.7: 'yellow',
+                    0.8: 'orange',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+        }
+
+        // Add filter panel - moved to bottom left
+        var showFilters = {{ show_filters_json }};
+        var uniqueSegments = {{ unique_segments_json }};
+        
+        var filterControl = L.control({position: 'bottomleft'});
+        filterControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'filter-panel');
+            div.innerHTML = '<div class="filter-header">🚨 Churn Filters <span id="filter-toggle" style="float: right; color: #dc3545;">▼</span></div>';
+            
+            var contentDiv = '<div class="filter-content" id="filter-content">';
+            
+            contentDiv += 
+                '<div class="filter-controls">' +
+                '<button class="filter-btn" onclick="selectAllSegments()">All</button>' +
+                '<button class="filter-btn" onclick="deselectAllSegments()">None</button>' +
+                '<button class="odp-toggle" id="odp-toggle" onclick="toggleODP()">ODP: ON</button>' +
+                '</div>';
+            
+            if (showFilters && uniqueSegments.length > 0) {
+                uniqueSegments.forEach(function(segment) {
+                    var color = segmentColors[segment.name] || '#808080';
+                    var safeId = segment.name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+                    
+                    contentDiv += 
+                        '<div class="segment-filter">' +
+                        '<input type="checkbox" class="segment-checkbox" id="segment_' + safeId + '" checked onchange="toggleSegment(\'' + segment.name.replace(/'/g, "\\'") + '\')"/>' +
+                        '<div class="segment-color" style="background-color: ' + color + '"></div>' +
+                        '<label class="segment-label" for="segment_' + safeId + '">' + segment.displayName + '</label>' +
+                        '<span class="segment-count">(' + segment.count.toLocaleString() + ')</span>' +
+                        '</div>';
+                });
+            }
+            
+            contentDiv += '</div>';
+            div.innerHTML += contentDiv;
+            
+            return div;
+        };
+        filterControl.addTo(map);
+
+        // Add collapsible functionality
+        setTimeout(function() {
+            var filterHeader = document.querySelector('.filter-header');
+            var filterContent = document.getElementById('filter-content');
+            var toggleIcon = document.getElementById('filter-toggle');
+            
+            if (filterHeader && filterContent && toggleIcon) {
+                filterHeader.onclick = function() {
+                    var isCollapsed = filterContent.classList.contains('collapsed');
+                    
+                    if (isCollapsed) {
+                        filterContent.classList.remove('collapsed');
+                        filterContent.style.maxHeight = '300px';
+                        toggleIcon.textContent = '▼';
+                        toggleIcon.style.color = '#dc3545';
+                    } else {
+                        filterContent.classList.add('collapsed');
+                        filterContent.style.maxHeight = '0';
+                        toggleIcon.textContent = '▶';
+                        toggleIcon.style.color = '#28a745';
+                    }
+                };
+                
+                // Start collapsed on mobile
+                var isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    setTimeout(function() { filterHeader.click(); }, 500);
+                }
+            }
+        }, 1000);
+
+        // Helper function for sanitizing segment names
+        function sanitizeSegmentName(segmentName) {
+            return segmentName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+        }
+        
+        // Filter functions
+        function toggleSegment(segmentName) {
+            debouncedToggle(function() {
+                isProcessing = true;
+                showLoading('Updating ' + segmentName + '...');
+                
+                setTimeout(function() {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (layerGroup) {
+                        if (checkbox.checked) {
+                            if (!map.hasLayer(layerGroup)) {
+                                map.addLayer(layerGroup);
+                            }
+                        } else {
+                            if (map.hasLayer(layerGroup)) {
+                                map.removeLayer(layerGroup);
+                            }
+                        }
+                    }
+                    
+                    isProcessing = false;
+                    hideLoading();
+                }, 50);
+            }, 100);
+        }
+        
+        function selectAllSegments() {
+            if (isProcessing) return;
+            isProcessing = true;
+            showLoading('Showing all segments...');
+            
+            setTimeout(function() {
+                Object.keys(markerGroups).forEach(function(segmentName) {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (checkbox) {
+                        checkbox.checked = true;
+                        if (layerGroup && !map.hasLayer(layerGroup)) {
+                            map.addLayer(layerGroup);
+                        }
+                    }
+                });
+                
+                isProcessing = false;
+                hideLoading();
+            }, 100);
+        }
+        
+        function deselectAllSegments() {
+            if (isProcessing) return;
+            isProcessing = true;
+            showLoading('Hiding all segments...');
+            
+            setTimeout(function() {
+                Object.keys(markerGroups).forEach(function(segmentName) {
+                    var safeId = sanitizeSegmentName(segmentName);
+                    var checkbox = document.getElementById('segment_' + safeId);
+                    var layerGroup = markerGroups[segmentName];
+                    
+                    if (checkbox) {
+                        checkbox.checked = false;
+                        if (layerGroup && map.hasLayer(layerGroup)) {
+                            map.removeLayer(layerGroup);
+                        }
+                    }
+                });
+                
+                isProcessing = false;
+                hideLoading();
+            }, 100);
+        }
+
+        function toggleODP() {
+            var toggleBtn = document.getElementById('odp-toggle');
+            showODP = !showODP;
+            
+            if (showODP) {
+                map.addLayer(odpMarkers);
+                toggleBtn.textContent = 'ODP: ON';
+                toggleBtn.classList.remove('active');
+            } else {
+                map.removeLayer(odpMarkers);
+                toggleBtn.textContent = 'ODP: OFF';
+                toggleBtn.classList.add('active');
+            }
+        }
+
+        // Info box - moved to top right
+        var info = L.control({position: 'topright'});
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info-box');
+            this._div.innerHTML = '<b>Risk Level:</b> {{ risk_level_display }}<br>' +
+                '<b>Lokasi:</b> {{ center_lat }}, {{ center_lon }}<br>' +
+                '<b>Churn Points:</b> {{ churn_data_count_formatted }}<br>' +
+                '<b>ODP Points:</b> {{ odp_data_count_formatted }}<br>' +
+                '<small>🚨 Location Churn Analysis</small>';
+            return this._div;
+        };
+        info.addTo(map);
+
+        // Auto-hide filters when map is clicked on mobile
+        map.on('click', function() {
+            var isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                setTimeout(function() {
+                    var filterContent = document.getElementById('filter-content');
+                    var filterHeader = document.querySelector('.filter-header');
+                    if (filterContent && !filterContent.classList.contains('collapsed') && filterHeader) {
+                        filterHeader.click();
+                    }
+                }, 800);
+            }
+        });
+
+        // Prevent zoom on double-tap for filter elements
+        document.addEventListener('touchend', function(e) {
+            if (e.target.closest('.filter-panel')) {
+                e.preventDefault();
+                return false;
+            }
+        }, { passive: false });
+
+        // Handle orientation change
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() {
+                var isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    var filterContent = document.getElementById('filter-content');
+                    var filterHeader = document.querySelector('.filter-header');
+                    if (filterContent && !filterContent.classList.contains('collapsed') && filterHeader) {
+                        filterHeader.click();
+                    }
+                }
+            }, 500);
+        });
+        
+        console.log('Location churn risk map initialization complete!');
+    </script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ODP New Golive Map</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <!-- Google Material Symbols -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" />
+    <style>
+        /* Watermark container that spans the whole viewport */
+        #watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 6px; 
+            pointer-events: none; 
+            z-index: 1000;
+            background: transparent; 
+        }
+
+        .watermark-item {
+            word-wrap: break-word; 
+            white-space: normal; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 16px;
+            color: #000;
+            opacity: 0.25;
+            transform: rotate(-30deg);
+            transform-origin: center;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            width: 100%;
+            height: calc(100% - 60px);
+        }
+        .material-symbols-outlined {
+            font-variation-settings:
+                'FILL' 0,
+                'wght' 400,
+                'GRAD' 0,
+                'opsz' 24;
+            vertical-align: middle;
+            cursor: pointer;
+            color: #000000cb;
+            transition: color 0.3s ease;
+            font-size: 16px;
+        }
+        .material-symbols-outlined:hover {
+            color: rgb(80, 80, 80);
+        }
+    
+        /* Unified custom popup/tooltip styling */
+        .leaflet-popup.custom-tooltip .leaflet-popup-content-wrapper {
+            background-color: rgba(255, 255, 255, 0.8) !important;
+            color: #000000cb !important;
+            padding: 4px 4px;
+            border-radius: 2px !important;
+            font-size: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: normal;
+            box-shadow: 0 4px 4px rgba(0, 0, 0, 0.3) !important;
+        }
+    
+        .leaflet-popup.custom-tooltip .leaflet-popup-tip {
+            background-color: rgba(255, 255, 255, 0.8) !important;
+        }
+    
+        /* Custom dot marker styling */
+        .custom-dot-icon {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    
+        #search-bar-header {
+            position: fixed; /* Keeps the header fixed relative to the viewport */
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: white;
+            padding: 10px 20px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            display: flex;
+            justify-content: center; /* Centers the search containers horizontally */
+            align-items: center;
+            gap: 15px; /* Space between search containers */
+            z-index: 1000; /* Ensures the header stays above other elements */
+            flex-wrap: wrap; /* Allows wrapping on very small screens */
+        }
+
+        /* Search Containers */
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 8px; /* Space between input and button */
+            flex: 1 1 250px; /* Allows the container to grow and shrink, with a base width */
+            max-width: 400px; /* Prevents excessive growth on large screens */
+        }
+
+        /* Shared Search Input Styling */
+        .search-input {
+            flex: 1; /* Input takes up remaining space within the container */
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+        }
+
+        /* Shared Search Button Styling */
+        .search-button {
+            padding: 6px 12px;
+            background-color: #28a745;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
+            white-space: nowrap; /* Prevents button text from wrapping */
+        }
+
+        .search-button:hover {
+            background-color: #218838;
+        }
+
+        /* Map Styling */
+        #map {
+            position: absolute;
+            top: 60px; /* Height of the header (adjust if necessary) */
+            bottom: 0;
+            width: 100%;
+        }
+
+        /* Responsive Adjustments */
+        @media (max-width: 800px) {
+            #search-bar-header {
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .search-container {
+                flex: 1 1 45%; /* Adjust base width for medium screens */
+                max-width: 45%;
+            }
+        }
+
+        @media (max-width: 500px) {
+            #search-bar-header {
+                flex-direction: column; /* Stack search containers vertically */
+                align-items: stretch; /* Stretch containers to full width */
+                padding: 10px;
+                gap: 10px;
+            }
+
+            .search-container {
+                flex: 1 1 100%; /* Full width on small screens */
+                max-width: 100%;
+            }
+
+            .search-input {
+                width: 100%; /* Full width inputs */
+            }
+
+            .search-button {
+                width: 100%; /* Full width buttons */
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Fixed Header with Search Bars -->
+    <header id="search-bar-header">
+        <!-- ODP Search Bar Container -->
+        <div id="odp-search-container" class="search-container">
+            <input type="text" id="odp-search-input" class="search-input" placeholder="Cari nama ODP..." />
+            <button id="odp-search-button" class="search-button">Cari ODP</button>
+        </div>
+
+        <!-- Location Search Bar Container -->
+        <div id="location-search-container" class="search-container">
+            <input type="text" id="latlong-search-input" class="search-input" placeholder="Format: lat, long" />
+            <button id="location-search-button" class="search-button">Cari Lokasi</button>
+        </div>
+    </header>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Watermark Container: Evenly distributed across the screen -->
+    <div id="watermark-container">
+        {{ watermark_container }}
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+
+        // Injected variables from server-side
+        var odpPoints = {{ odp_points }};
+
+        // Initialize the map
+        var map = L.map('map').setView([-2.548926, 118.0148634], 5);
+
+        // Add tiles
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Color logic
+        function getColor(occ_2) {
+            switch (occ_2.toUpperCase()) {
+                case 'BLACK': return 'black';
+                case 'GREEN': return 'green';
+                case 'YELLOW': return 'yellow';
+                case 'ORANGE': return 'orange';
+                case 'RED': return 'red';
+                default: return 'gray';
+            }
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(text) {
+            // Create a temporary textarea element
+            var tempInput = document.createElement('textarea');
+            tempInput.value = text;
+            tempInput.style.position = 'fixed';
+            tempInput.style.opacity = '0';
+            tempInput.style.left = '-9999px';
+            document.body.appendChild(tempInput);
+            tempInput.focus();
+            tempInput.select();
+
+            // Try to execute the copy command
+            try {
+                var successful = document.execCommand('copy');
+                if (successful) {
+                    alert('Copied: ' + text);
+                } else {
+                    alert('Could not copy text. Please copy manually.');
+                }
+            } catch (err) {
+                alert('Could not copy text: ' + err);
+            }
+
+            // Remove the temporary element
+            document.body.removeChild(tempInput);
+        }
+
+        
+        // Store markers for easy access during search
+        var markers = [];
+
+        // Check if odpPoints is valid
+        if (Array.isArray(odpPoints)) {
+            odpPoints.forEach(function(odp) {
+                // Get color for marker
+                var color = getColor(odp.occ_2);
+
+                // Create custom marker icon
+                var dotIcon = L.divIcon({
+                    className: '',
+                    html: `<div style="width: 6px; height: 6px; background-color: ${color}; border-radius: 50%;"></div>`,
+                    iconSize: [6, 6],
+                    iconAnchor: [4, 4]
+                });
+
+                // Add marker to the map
+                var marker = L.marker([odp.latitude, odp.longitude], { icon: dotIcon }).addTo(map);
+
+                // Unified popup content
+                var popupContent = `
+                <div>
+                    <b>${odp.odp_name}</b>
+                    <span class="material-symbols-outlined" onclick="copyToClipboard('${odp.odp_name}')">
+                        content_copy
+                    </span><br>
+                    Lat, Long: ${odp.latitude},${odp.longitude}
+                    <span class="material-symbols-outlined" onclick="copyToClipboard('${odp.latitude},${odp.longitude}')">
+                        content_copy
+                    </span><br>
+                    Ports Available: ${odp.port_avail}<br>
+                    Ports Used: ${odp.port_used}<br>
+                    Total Ports: ${odp.port_total}<br>
+                    Occupancy: ${odp.occ_2}<br>
+                    STO: ${odp.sto}<br>
+                    Region: ${odp.tsel_region}<br>
+                    Branch: ${odp.tsel_branch}<br>
+                    Kabupaten: ${odp.kab_tsel}<br>
+                    Golive Date: ${odp.min_event_date}<br>
+                    Program Type:<br><span style="word-wrap: break-word;">${odp.program_type}</span><br>
+                    Project Status: ${odp.project_status}
+                </div>
+            `;
+
+                // Bind unified popup
+                marker.bindPopup(popupContent, {
+                    className: 'custom-tooltip', // Use the unified class
+                    closeButton: false,
+                    autoPan: true,
+                    keepInView: true,
+                    maxWidth: 400,
+                });
+
+                // Show popup on click
+                marker.on('click', function(e) {
+                    map.closePopup(); // Close other popups
+                    marker.openPopup(); // Open this popup
+                    e.originalEvent.stopPropagation();
+                });
+
+                // Prevent map click from closing popup when interacting with it
+                marker.on('popupopen', function(e) {
+                    var popupContainer = e.popup.getElement();
+                    L.DomEvent.on(popupContainer, 'click', function(ev) {
+                        L.DomEvent.stopPropagation(ev);
+                    });
+                });
+
+                // Store marker with odp_name for search
+                markers.push({
+                    odp_name: odp.odp_name.toUpperCase(),
+                    marker: marker
+                });
+            });
+        } else {
+            console.error('Invalid ODP data provided');
+        }
+
+        // Click
+        document.getElementById('odp-search-button').addEventListener('click', function() {
+            performSearch();
+        });
+
+        document.getElementById('location-search-button').addEventListener('click', function() {
+            performLocationSearch();
+        });
+
+        // Enter
+        document.getElementById('odp-search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        document.getElementById('location-search-button').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performLocationSearch();
+            }
+        });
+
+
+        function performSearch() {
+            var query = document.getElementById('odp-search-input').value.trim().toUpperCase();
+            if (!query) {
+                alert('Silakan masukkan nama ODP untuk mencari.');
+                return;
+            }
+
+            // Find matching markers
+            var matchedMarkers = markers.filter(function(item) {
+                return item.odp_name === query;
+            });
+
+            if (matchedMarkers.length === 0) {
+                alert('ODP tidak ditemukan. Silakan periksa kembali nama ODP.');
+                return;
+            }
+
+            // If multiple matches, focus on the first one (assuming unique names)
+            var target = matchedMarkers[0].marker;
+
+            // Zoom and focus on the marker
+            map.setView(target.getLatLng(), 15, { animate: true });
+
+            // Open the popup
+            target.openPopup();
+        }
+        
+        ////////////////////////////////////////////////
+
+
+        // New Location Search Functionality
+        function performLocationSearch() {
+            var latlng = document.getElementById('latlong-search-input').value.trim();
+
+            // Normalize the input by removing extra spaces
+            latlng = latlng.replace(/\s+/g, ''); // Removes spaces
+
+            // Validate format (expecting "lat,lng")
+            if (!latlng.includes(',')) {
+                alert('Silakan masukkan latitude dan longitude dalam format: lat,lng');
+                return;
+            }
+
+            // Split the input into latitude and longitude
+            var [lat, lng] = latlng.split(',').map(Number);
+
+            // Validate that both latitude and longitude are valid numbers
+            if (isNaN(lat) || isNaN(lng)) {
+                alert('Silakan masukkan nilai latitude dan longitude yang valid.');
+                return;
+            }
+
+            // Set the map view to the entered coordinates
+            var latLng = L.latLng(lat, lng);
+            map.setView(latLng, 15, { animate: true });
+
+            // Optionally, add a marker at the searched location
+            var locationMarker = L.marker(latLng).addTo(map)
+                .bindPopup('Lokasi Pencarian')
+                .openPopup();
+        }
+
+        
+        //////////////////////////////////////////////////////////
+
+        // Optional: Add a reset view button
+        var resetViewButton = L.control({position: 'topright'});
+
+        resetViewButton.onAdd = function(map) {
+            var div = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+            div.innerHTML = '<a href="#" title="Reset View" style="display: block; padding: 5px;"><span class="material-symbols-outlined">refresh</span></a>';
+            div.style.backgroundColor = 'white';
+            div.style.cursor = 'pointer';
+
+            div.onclick = function(e) {
+                e.preventDefault();
+                map.setView([-2.548926, 118.0148634], 5, { animate: true });
+            }
+
+            return div;
+        };
+
+        // Enhance zoom responsiveness for slower devices
+        map.on('zoomstart', function() {
+            map.scrollWheelZoom.disable(); // Temporarily disable scroll zoom for smoother interaction
+        });
+
+        map.on('zoomend', function() {
+            setTimeout(function() {
+                map.scrollWheelZoom.enable(); // Re-enable scroll zoom after zoom finishes
+            }, 500); // Delay ensures smooth zoom experience
+        });
+
+        resetViewButton.addTo(map);
+    </script>
+</body>
+</html>

@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Churn Risk Clustering Map - {{ sto_name_upper }}</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <style>
+        /* Mobile optimizations with clustering features */
+        @media (max-width: 768px) {
+            .filter-panel {
+                max-width: 220px !important;
+                max-height: 40vh !important;
+                font-size: 10px !important;
+                padding: 6px !important;
+                opacity: 0.95;
+                overflow-y: auto;
+            }
+            
+            .clustering-controls {
+                margin: 4px 0 !important;
+                font-size: 9px !important;
+                padding: 3px !important;
+            }
+            
+            .cluster-toggle {
+                padding: 2px 4px !important;
+                font-size: 8px !important;
+                margin: 1px !important;
+            }
+            
+            .filter-header {
+                font-size: 11px !important;
+                padding: 4px !important;
+                margin-bottom: 4px !important;
+            }
+            
+            .filter-btn {
+                padding: 2px 4px !important;
+                font-size: 9px !important;
+                margin-right: 2px !important;
+            }
+            
+            .segment-filter {
+                margin: 2px 0 !important;
+                font-size: 10px !important;
+                padding: 2px !important;
+            }
+            
+            .segment-checkbox {
+                width: 12px !important;
+                height: 12px !important;
+                margin-right: 4px !important;
+            }
+            
+            .segment-color {
+                width: 8px !important;
+                height: 8px !important;
+                margin-right: 3px !important;
+            }
+            
+            .segment-label {
+                font-size: 9px !important;
+            }
+            
+            .segment-count {
+                font-size: 8px !important;
+            }
+            
+            .info-box {
+                position: fixed !important;
+                top: 10px !important;
+                right: 10px !important;
+                max-width: 160px !important;
+                font-size: 9px !important;
+                padding: 4px !important;
+            }
+        }
+
+        /* Base styles */
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { height: 100vh; width: 100vw; }
+        
+        .info-box {
+            background: white;
+            padding: 4px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 300px;
+            opacity: 0.9;
+        }
+        
+        .filter-panel {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 280px;
+            opacity: 0.95;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+        
+        .filter-header {
+            font-weight: bold;
+            margin-bottom: 6px;
+            font-size: 13px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 4px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        /* Clustering controls */
+        .clustering-controls {
+            margin: 6px 0;
+            padding: 4px;
+            background: #f8f9fa;
+            border-radius: 3px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .cluster-toggle {
+            background: #6f42c1;
+            color: white;
+            border: none;
+            padding: 3px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            cursor: pointer;
+            margin: 2px;
+        }
+        
+        .cluster-toggle:hover {
+            background: #5a32a3;
+        }
+        
+        .cluster-toggle.active {
+            background: #4c2a85;
+        }
+        
+        .cluster-toggle:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* Filter styles */
+        .filter-controls {
+            margin-bottom: 6px;
+        }
+        
+        .filter-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 10px;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+        
+        .filter-btn:hover {
+            background: #c82333;
+        }
+        
+        .filter-btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .segment-filter {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+            font-size: 11px;
+            padding: 1px;
+            border-radius: 2px;
+        }
+        
+        .segment-filter:hover {
+            background-color: rgba(220,53,69,0.1);
+        }
+        
+        .segment-checkbox {
+            margin-right: 6px;
+        }
+        
+        .segment-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 4px;
+            border: 1px solid #333;
+        }
+        
+        .segment-label {
+            flex: 1;
+            font-size: 10px;
+        }
+        
+        .segment-count {
+            color: #666;
+            font-size: 9px;
+        }
+        
+        /* Custom popup styles */
+        .custom-popup {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .popup-header {
+            font-weight: bold;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+        }
+        
+        .popup-row {
+            margin: 2px 0;
+        }
+        
+        .popup-label {
+            font-weight: bold;
+            color: #555;
+            display: inline-block;
+            width: 80px;
+        }
+        
+        .cluster-info {
+            background: #e9ecef;
+            padding: 3px;
+            border-radius: 3px;
+            margin-top: 5px;
+        }
+        
+        /* Loading and utility styles */
+        .loading-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10000;
+            font-size: 14px;
+        }
+        
+        /* Collapsible content */
+        .filter-content {
+            transition: max-height 0.3s ease-out;
+            overflow: hidden;
+        }
+        
+        .filter-content.collapsed {
+            max-height: 0;
+        }
+        
+        /* Touch-friendly hover effects */
+        .segment-filter:active {
+            background-color: rgba(220,53,69,0.2) !important;
+            transform: scale(0.98);
+        }
+
+        .filter-btn:active, .cluster-toggle:active {
+            transform: scale(0.95);
+        }
+
+        /* Very small screens */
+        @media (max-width: 480px) {
+            .filter-panel {
+                max-width: 200px !important;
+                max-height: 35vh !important;
+            }
+            
+            .segment-label {
+                font-size: 8px !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 70px;
+            }
+            
+            .filter-header {
+                font-size: 10px !important;
+            }
+            
+            .clustering-controls {
+                padding: 2px !important;
+            }
+        }
+        
+        /* Watermark styles */
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            z-index: 10001;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 0;
+            opacity: 0.03;
+        }
+        
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            color: #000;
+            text-shadow: 0 0 1px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+    <script>
+        console.log('Initializing churn clustering map for {{ data_count }} points...');
+        
+        var map = L.map('map').setView([{{ center_lat }}, {{ center_lon }}], 13);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        var heatData = [];
+        var markerGroups = {};
+        var clusterMarkers = L.layerGroup();
+        var clusterCircles = L.layerGroup();
+        var isolatedMarkers = L.layerGroup();
+        var clusteredMarkers = L.layerGroup();
+        var segmentCounts = {};
+        var isProcessing = false;
+        var showClusters = true;
+        var showClusterCircles = true;
+
+        // Clustering data from backend
+        var clusteringResults = {{ clustering_results_json }};
+        var clusterData = {{ cluster_data_json }};
+
+        // Initialize segment data
+        var segmentData = {{ segment_data_json }};
+        var segmentColors = {{ segment_colors_json }};
+        var riskColors = {{ risk_colors_json }};
+        var batchSize = 2000;
+
+        // Color scheme for clusters
+        var clusterColors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
+        
+        // Utility functions
+        function showLoading(message) {
+            if (document.getElementById('loading-indicator')) return;
+            const loading = document.createElement('div');
+            loading.className = 'loading-overlay';
+            loading.id = 'loading-indicator';
+            loading.textContent = message || 'Processing...';
+            document.body.appendChild(loading);
+            
+            document.querySelectorAll('.filter-btn, .cluster-toggle').forEach(btn => btn.disabled = true);
+        }
+
+        function hideLoading() {
+            const loading = document.getElementById('loading-indicator');
+            if (loading) loading.remove();
+            
+            document.querySelectorAll('.filter-btn, .cluster-toggle').forEach(btn => btn.disabled = false);
+        }
+
+        // Create cluster visualizations
+        function createClusterVisualizations() {
+            if (!clusterData || Object.keys(clusterData).length === 0) return;
+            
+            Object.keys(clusterData).forEach(function(clusterId, index) {
+                var cluster = clusterData[clusterId];
+                var color = clusterColors[index % clusterColors.length];
+                
+                // Create cluster center marker with revenue info
+                var centerMarker = L.circleMarker([cluster.center.lat, cluster.center.lng], {
+                    radius: 8,
+                    fillColor: color,
+                    color: '#000',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillOpacity: 0.6
+                });
+                
+                // Enhanced popup with revenue information
+                var popupContent = 
+                    '<div class="custom-popup">' +
+                    '<div class="popup-header">🎯 Cluster Center ' + clusterId + '</div>' +
+                    '<div class="popup-row"><span class="popup-label">Users:</span> ' + cluster.user_count + '</div>' +
+                    '<div class="popup-row"><span class="popup-label">Radius:</span> ' + cluster.radius + 'm</div>';
+                
+                // Add revenue info if available from cluster data
+                if (cluster.total_revenue) {
+                    popupContent += 
+                        '<div class="popup-row"><span class="popup-label">Rank:</span> ' + (cluster.rank || 'N/A') + '</div>' +
+                        '<div class="popup-row"><span class="popup-label">Revenue:</span> Rp ' + cluster.total_revenue.toLocaleString() + '</div>' +
+                        '<div class="popup-row"><span class="popup-label">Avg/User:</span> Rp ' + Math.round(cluster.total_revenue / cluster.user_count).toLocaleString() + '</div>';
+                }
+                
+                popupContent += 
+                    '<div class="popup-row"><span class="popup-label">Center:</span> ' + cluster.center.lat.toFixed(4) + ', ' + cluster.center.lng.toFixed(4) + '</div>' +
+                    '</div>';
+                
+                centerMarker.bindPopup(popupContent);
+                clusterMarkers.addLayer(centerMarker);
+                
+                // Create cluster radius circle
+                var circle = L.circle([cluster.center.lat, cluster.center.lng], {
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.1,
+                    weight: 2,
+                    radius: cluster.radius
+                });
+                
+                var circlePopupContent = 
+                    '<div class="custom-popup">' +
+                    '<div class="popup-header">📍 Cluster Area ' + clusterId + '</div>' +
+                    '<div class="popup-row">Contains <b>' + cluster.user_count + '</b> high-risk users</div>' +
+                    '<div class="popup-row">Visual radius: ' + cluster.radius + 'm</div>';
+                
+                if (cluster.total_revenue) {
+                    circlePopupContent += 
+                        '<div class="popup-row">Revenue Priority: <b>Rank ' + (cluster.rank || 'N/A') + '</b></div>' +
+                        '<div class="popup-row">Total Revenue: Rp ' + cluster.total_revenue.toLocaleString() + '</div>';
+                }
+                
+                circlePopupContent += 
+                    '<div style="font-size: 10px; color: #666; margin-top: 5px;">*Circle shows approximate cluster boundary</div>' +
+                    '</div>';
+                
+                circle.bindPopup(circlePopupContent);
+                clusterCircles.addLayer(circle);
+            });
+        }
+
+        // Process segment data with cluster information
+        Object.keys(segmentData).forEach(function(segmentName) {
+            var items = segmentData[segmentName];
+            var layerGroup = L.layerGroup();
+            markerGroups[segmentName] = layerGroup;
+            segmentCounts[segmentName] = items.length;
+            
+            console.log('Processing segment ' + segmentName + ': ' + items.length + ' markers');
+            
+            // Process markers in batches
+            (function() {
+                var batchIndex = 0;
+                var totalBatches = Math.ceil(items.length / batchSize);
+                
+                function processBatch() {
+                    var startIdx = batchIndex * batchSize;
+                    var endIdx = Math.min(startIdx + batchSize, items.length);
+                    var batchMarkers = [];
+                    
+                    for (var i = startIdx; i < endIdx; i++) {
+                        var item = items[i];
+                        var isInCluster = item.cluster_id !== undefined && item.cluster_id !== -1;
+                        
+                        var baseColor = item.color || segmentColors[segmentName] || '#808080';
+                        var markerColor = isInCluster ? baseColor : '#999999';
+                        
+                        var marker = L.circleMarker([item.lat, item.lon], {
+                            radius: isInCluster ? 7 : 5,
+                            fillColor: markerColor,
+                            color: isInCluster ? '#000' : '#666',
+                            weight: isInCluster ? 2 : 1,
+                            opacity: 1,
+                            fillOpacity: isInCluster ? 0.8 : 0.6
+                        });
+                        
+                        // Enhanced popup with cluster and revenue information
+                        var popupContent = 
+                            '<div class="custom-popup">' +
+                            '<div class="popup-header">🚨 Churn Risk: <b>' + item.bb_id + '</b></div>' +
+                            '<div class="popup-row"><span class="popup-label">Segment:</span> ' + segmentName + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">Risk Level:</span> ' + item.risk_level + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">STO:</span> ' + item.sto + '</div>' +
+                            '<div class="popup-row"><span class="popup-label">City:</span> ' + item.city + '</div>';
+                        
+                        // Add revenue info if available
+                        if (item.revenue !== undefined && item.revenue > 0) {
+                            popupContent += '<div class="popup-row"><span class="popup-label">Revenue:</span> Rp ' + item.revenue.toLocaleString() + '</div>';
+                        }
+                        
+                        popupContent += '<div class="popup-row"><span class="popup-label">LatLong:</span> ' + item.lat.toFixed(6) + ', ' + item.lon.toFixed(6) + '</div>';
+                        
+                        if (isInCluster) {
+                            var clusterInfo = '🎯 Cluster: ' + item.cluster_id;
+                            if (item.cluster_rank) {
+                                clusterInfo += ' (Rank ' + item.cluster_rank + ')';
+                            }
+                            if (item.cluster_total_revenue) {
+                                clusterInfo += '<br>Cluster Revenue: Rp ' + item.cluster_total_revenue.toLocaleString();
+                            }
+                            popupContent += '<div class="cluster-info">' + clusterInfo + '</div>';
+                        } else {
+                            popupContent += '<div class="cluster-info">👤 Isolated User</div>';
+                        }
+                        
+                        popupContent += '</div>';
+                        marker.bindPopup(popupContent);
+                        
+                        batchMarkers.push(marker);
+                        
+                        // Add to appropriate group
+                        if (isInCluster) {
+                            clusteredMarkers.addLayer(marker);
+                        } else {
+                            isolatedMarkers.addLayer(marker);
+                        }
+                        
+                        // Heatmap weight based on clustering and risk
+                        var heatWeight = isInCluster ? 
+                            (item.risk_level === 'HIGH' ? 3 : 2) : 
+                            (item.risk_level === 'HIGH' ? 1.5 : 1);
+                        heatData.push([item.lat, item.lon, heatWeight]);
+                    }
+                    
+                    batchMarkers.forEach(function(marker) {
+                        layerGroup.addLayer(marker);
+                    });
+                    
+                    batchIndex++;
+                    if (batchIndex < totalBatches) {
+                        setTimeout(processBatch, 10);
+                    }
+                }
+                
+                processBatch();
+            })();
+            
+            layerGroup.addTo(map);
+        });
+
+        // Create cluster visualizations
+        createClusterVisualizations();
+        
+        // Add clustering layers to map initially
+        if (showClusters) {
+            clusterMarkers.addTo(map);
+            clusteredMarkers.addTo(map);
+            isolatedMarkers.addTo(map);
+        }
+        
+        if (showClusterCircles) {
+            clusterCircles.addTo(map);
+        }
+
+        // Add enhanced heatmap
+        if (heatData.length > 0) {
+            var heat = L.heatLayer(heatData, {
+                radius: 25,
+                blur: 15,
+                maxZoom: 17,
+                gradient: {
+                    0.3: 'blue',
+                    0.5: 'cyan', 
+                    0.7: 'yellow',
+                    0.8: 'orange',
+                    1.0: 'red'
+                }
+            }).addTo(map);
+        }
+
+        // Enhanced filter panel with clustering controls - moved to bottom left
+        var showFilters = {{ show_filters_json }};
+        var uniqueSegments = {{ unique_segments_json }};
+        
+        if (showFilters) {
+            var filterControl = L.control({position: 'bottomleft'});
+            filterControl.onAdd = function (map) {
+                var div = L.DomUtil.create('div', 'filter-panel');
+                div.innerHTML = '<div class="filter-header">🎯 Clustering Filters <span id="filter-toggle" style="float: right; color: #6f42c1;">▼</span></div>';
+                
+                var contentDiv = '<div class="filter-content" id="filter-content">';
+                
+                // Clustering controls
+                if (clusteringResults && clusteringResults.total_clusters > 0) {
+                    contentDiv += 
+                        '<div class="clustering-controls">' +
+                        '<div style="font-weight: bold; margin-bottom: 4px; font-size: 10px;">Clustering:</div>' +
+                        '<button class="cluster-toggle" id="toggle-circles" onclick="toggleClusterCircles()">Circles: ON</button>' +
+                        '<button class="cluster-toggle" id="toggle-clustered" onclick="toggleClusteredUsers()">Clustered: ON</button>' +
+                        '<div style="font-size: 9px; margin-top: 2px; color: #666;">' +
+                        'Clusters: ' + clusteringResults.total_clusters + ' | Rate: ' + clusteringResults.clustering_rate.toFixed(1) + '%' +
+                        '</div>' +
+                        '</div>';
+                }
+                
+                // Regular segment filters
+                contentDiv += 
+                    '<div class="filter-controls">' +
+                    '<button class="filter-btn" onclick="selectAllSegments()">All</button>' +
+                    '<button class="filter-btn" onclick="deselectAllSegments()">None</button>' +
+                    '</div>';
+                
+                uniqueSegments.forEach(function(segment) {
+                    var color = segmentColors[segment.name] || '#808080';
+                    var safeId = segment.name.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+                    
+                    contentDiv += 
+                        '<div class="segment-filter">' +
+                        '<input type="checkbox" class="segment-checkbox" id="segment_' + safeId + '" checked onchange="toggleSegment(\'' + segment.name.replace(/'/g, "\\'") + '\')"/>' +
+                        '<div class="segment-color" style="background-color: ' + color + '"></div>' +
+                        '<label class="segment-label" for="segment_' + safeId + '">' + segment.displayName + '</label>' +
+                        '<span class="segment-count">(' + segment.count.toLocaleString() + ')</span>' +
+                        '</div>';
+                });
+                
+                contentDiv += '</div>';
+                div.innerHTML += contentDiv;
+                
+                return div;
+            };
+            filterControl.addTo(map);
+            
+            // Add collapsible functionality
+            setTimeout(function() {
+                var filterHeader = document.querySelector('.filter-header');
+                var filterContent = document.getElementById('filter-content');
+                var toggleIcon = document.getElementById('filter-toggle');
+                
+                if (filterHeader && filterContent && toggleIcon) {
+                    filterHeader.onclick = function() {
+                        var isCollapsed = filterContent.classList.contains('collapsed');
+                        
+                        if (isCollapsed) {
+                            filterContent.classList.remove('collapsed');
+                            filterContent.style.maxHeight = '350px';
+                            toggleIcon.textContent = '▼';
+                            toggleIcon.style.color = '#6f42c1';
+                        } else {
+                            filterContent.classList.add('collapsed');
+                            filterContent.style.maxHeight = '0';
+                            toggleIcon.textContent = '▶';
+                            toggleIcon.style.color = '#28a745';
+                        }
+                    };
+                    
+                    // Start collapsed on mobile
+                    var isMobile = window.innerWidth <= 768;
+                    if (isMobile) {
+                        setTimeout(function() { filterHeader.click(); }, 500);
+                    }
+                }
+            }, 1000);
+        }
+
+        // Clustering control functions
+        function toggleClusterCircles() {
+            var btn = document.getElementById('toggle-circles');
+            showClusterCircles = !showClusterCircles;
+            
+            if (showClusterCircles) {
+                map.addLayer(clusterCircles);
+                btn.textContent = 'Circles: ON';
+                btn.classList.remove('active');
+            } else {
+                map.removeLayer(clusterCircles);
+                btn.textContent = 'Circles: OFF';
+                btn.classList.add('active');
+            }
+        }
+
+        function toggleClusteredUsers() {
+            var btn = document.getElementById('toggle-clustered');
+            showClusters = !showClusters;
+            
+            if (showClusters) {
+                map.addLayer(clusterMarkers);
+                map.addLayer(clusteredMarkers);
+                map.addLayer(isolatedMarkers);
+                btn.textContent = 'Clustered: ON';
+                btn.classList.remove('active');
+            } else {
+                map.removeLayer(clusterMarkers);
+                map.removeLayer(clusteredMarkers);
+                map.removeLayer(isolatedMarkers);
+                btn.textContent = 'Clustered: OFF';
+                btn.classList.add('active');
+            }
+        }
+
+        // Utility function for sanitizing segment names
+        function sanitizeSegmentName(segmentName) {
+            return segmentName.replace(/[^a-zA-Z0-9 ]/g, '').replace(/\s+/g, '_').toUpperCase();
+        }
+        
+        // Standard filter functions
+        function toggleSegment(segmentName) {
+            var safeId = sanitizeSegmentName(segmentName);
+            var checkbox = document.getElementById('segment_' + safeId);
+            var layerGroup = markerGroups[segmentName];
+            
+            if (layerGroup) {
+                if (checkbox.checked) {
+                    if (!map.hasLayer(layerGroup)) {
+                        map.addLayer(layerGroup);
+                    }
+                } else {
+                    if (map.hasLayer(layerGroup)) {
+                        map.removeLayer(layerGroup);
+                    }
+                }
+            }
+        }
+        
+        function selectAllSegments() {
+            Object.keys(markerGroups).forEach(function(segmentName) {
+                var safeId = sanitizeSegmentName(segmentName);
+                var checkbox = document.getElementById('segment_' + safeId);
+                var layerGroup = markerGroups[segmentName];
+                
+                if (checkbox) {
+                    checkbox.checked = true;
+                    if (layerGroup && !map.hasLayer(layerGroup)) {
+                        map.addLayer(layerGroup);
+                    }
+                }
+            });
+        }
+        
+        function deselectAllSegments() {
+            Object.keys(markerGroups).forEach(function(segmentName) {
+                var safeId = sanitizeSegmentName(segmentName);
+                var checkbox = document.getElementById('segment_' + safeId);
+                var layerGroup = markerGroups[segmentName];
+                
+                if (checkbox) {
+                    checkbox.checked = false;
+                    if (layerGroup && map.hasLayer(layerGroup)) {
+                        map.removeLayer(layerGroup);
+                    }
+                }
+            });
+        }
+
+        // Info box - moved to top right
+        var info = L.control({position: 'topright'});
+        info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info-box');
+            var infoContent = '<b>Region:</b> {{ region_name_upper }}<br>' +
+                '<b>Branch:</b> {{ branch_name_upper }}<br>' +
+                '<b>STO:</b> {{ sto_name_upper }}<br>' +
+                '<b>Risk Level:</b> {{ risk_level_display }}<br>' +
+                '<b>Total Points:</b> {{ data_count_formatted }}<br>';
+            
+            // Add clustering info if available
+            if (clusteringResults && clusteringResults.total_clusters > 0) {
+                infoContent += '<b>Clusters:</b> ' + clusteringResults.total_clusters + '<br>';
+                infoContent += '<b>Clustering Rate:</b> ' + clusteringResults.clustering_rate.toFixed(1) + '%<br>';
+            }
+            
+            infoContent += '<small>🎯 Clustering Analysis</small>';
+            this._div.innerHTML = infoContent;
+            return this._div;
+        };
+        info.addTo(map);
+
+        // Set map bounds
+        if (heatData.length > 0) {
+            var bounds = L.latLngBounds([[{{ min_lat }}, {{ min_lon }}], [{{ max_lat }}, {{ max_lon }}]]);
+            map.fitBounds(bounds, {padding: [20, 20]});
+        }
+
+        // Auto-hide filters when map is clicked on mobile
+        map.on('click', function() {
+            var isMobile = window.innerWidth <= 768;
+            if (isMobile) {
+                setTimeout(function() {
+                    var filterContent = document.getElementById('filter-content');
+                    var filterHeader = document.querySelector('.filter-header');
+                    if (filterContent && !filterContent.classList.contains('collapsed') && filterHeader) {
+                        filterHeader.click();
+                    }
+                }, 800);
+            }
+        });
+
+        // Prevent zoom on double-tap for filter elements
+        document.addEventListener('touchend', function(e) {
+            if (e.target.closest('.filter-panel')) {
+                e.preventDefault();
+                return false;
+            }
+        }, { passive: false });
+
+        // Handle orientation change
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() {
+                var isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    var filterContent = document.getElementById('filter-content');
+                    var filterHeader = document.querySelector('.filter-header');
+                    if (filterContent && !filterContent.classList.contains('collapsed') && filterHeader) {
+                        filterHeader.click();
+                    }
+                }
+            }, 500);
+        });
+
+        console.log('Churn clustering map initialization complete!');
+    </script>
+</body>
+</html>

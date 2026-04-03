@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ODP Black Map - {{ selected_branch }} | {{ selected_wok }}</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #fff;
+            overflow: hidden;
+            position: relative;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        #map {
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* More transparent boxes with better contrast */
+        .map-header {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(85, 33, 44, 0.7);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            z-index: 1000;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: calc(100vw - 20px);
+            transition: all 0.3s ease;
+        }
+
+        .map-header h2 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+            white-space: nowrap;
+        }
+
+        .map-header p {
+            margin: 4px 0 0 0;
+            font-size: 11px;
+            opacity: 0.95;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: rgba(20, 20, 20, 0.6);
+            padding: 12px;
+            border-radius: 12px;
+            z-index: 1000;
+            min-width: 180px;
+            max-width: calc(100vw - 20px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .legend h4 {
+            color: #ff6b7a;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-size: 11px;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            flex-shrink: 0;
+        }
+
+        .stats-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(20, 20, 20, 0.6);
+            padding: 12px;
+            border-radius: 12px;
+            z-index: 1000;
+            max-width: 220px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .stats-panel h4 {
+            color: #ff6b7a;
+            margin-bottom: 8px;
+            font-size: 13px;
+            text-align: center;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+        }
+
+        .stats-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .stats-label {
+            color: #ddd;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        .stats-value {
+            color: #ff6b7a;
+            font-weight: bold;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+        }
+
+        /* Enhanced watermark */
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 999;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            grid-template-rows: repeat(8, 1fr);
+            gap: 0;
+        }
+
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            color: rgba(0, 0, 0, 0.2);
+            font-weight: bold;
+            text-align: center;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+            overflow: visible;
+        }
+
+        /* Enhanced popup styles */
+        .leaflet-popup-content-wrapper {
+            background: rgba(20, 20, 20, 0.85);
+            color: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .leaflet-popup-content {
+            margin: 12px;
+            line-height: 1.4;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(20, 20, 20, 0.85);
+        }
+
+        .popup-title {
+            color: #ff6b7a;
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 107, 122, 0.3);
+            padding-bottom: 4px;
+        }
+
+        .popup-info {
+            font-size: 11px;
+            margin-bottom: 4px;
+        }
+
+        .popup-label {
+            color: #ddd;
+            display: inline-block;
+            width: 70px;
+        }
+
+        .popup-value {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .popup-status {
+            background: #ff6b7a;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        /* Mobile-first responsive design */
+        @media (max-width: 480px) {
+            .map-header {
+                top: 5px;
+                left: 5px;
+                padding: 8px 12px;
+                border-radius: 8px;
+                max-width: calc(100vw - 160px);
+            }
+            
+            .map-header h2 {
+                font-size: 13px;
+            }
+            
+            .map-header p {
+                font-size: 9px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .legend {
+                bottom: 5px;
+                right: 5px;
+                left: 5px;
+                min-width: auto;
+                max-width: none;
+                padding: 10px;
+                border-radius: 8px;
+            }
+
+            .legend h4 {
+                font-size: 12px;
+            }
+
+            .legend-item {
+                font-size: 10px;
+                margin-bottom: 5px;
+            }
+
+            .legend-color {
+                width: 14px;
+                height: 14px;
+                margin-right: 6px;
+            }
+
+            .stats-panel {
+                top: 5px;
+                right: 5px;
+                max-width: 140px;
+                padding: 8px 10px;
+                border-radius: 8px;
+            }
+
+            .stats-panel h4 {
+                font-size: 11px;
+                margin-bottom: 6px;
+            }
+
+            .stats-item {
+                font-size: 9px;
+                margin-bottom: 3px;
+            }
+
+            .stats-label {
+                font-size: 8px;
+            }
+
+            .stats-value {
+                font-size: 9px;
+            }
+
+            .watermark-container {
+                grid-template-columns: repeat(8, 1fr);
+                grid-template-rows: repeat(8, 1fr);
+            }
+
+            .watermark-item {
+                font-size: 12px;
+                color: rgba(0, 0, 0, 0.2);
+            }
+
+            /* Adjust popup for mobile */
+            .leaflet-popup-content {
+                margin: 8px;
+            }
+
+            .popup-title {
+                font-size: 12px;
+            }
+
+            .popup-info {
+                font-size: 10px;
+            }
+
+            .popup-label {
+                width: 60px;
+            }
+        }
+
+        @media (max-width: 320px) {
+            .map-header {
+                max-width: calc(100vw - 120px);
+                padding: 6px 8px;
+            }
+
+            .map-header h2 {
+                font-size: 12px;
+            }
+
+            .map-header p {
+                font-size: 8px;
+            }
+
+            .stats-panel {
+                max-width: 110px;
+                padding: 6px 8px;
+            }
+
+            .stats-panel h4 {
+                font-size: 10px;
+            }
+
+            .stats-item {
+                font-size: 8px;
+            }
+        }
+
+        /* Tablet adjustments */
+        @media (min-width: 481px) and (max-width: 768px) {
+            .map-header h2 {
+                font-size: 15px;
+            }
+
+            .map-header p {
+                font-size: 10px;
+            }
+
+            .stats-panel {
+                max-width: 200px;
+            }
+
+            .legend {
+                min-width: 160px;
+            }
+        }
+
+        /* Touch improvements */
+        @media (hover: none) and (pointer: coarse) {
+            .map-header, .stats-panel, .legend {
+                backdrop-filter: blur(15px);
+            }
+
+            /* Make touch targets larger */
+            .leaflet-popup-close-button {
+                width: 24px;
+                height: 24px;
+                font-size: 18px;
+            }
+        }
+
+        /* Prevent text selection on mobile */
+        .map-header, .stats-panel, .legend {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Watermark -->
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+
+    <!-- Map Header -->
+    <div class="map-header">
+        <h2>⚫️ ODP BLACK MAP</h2>
+        <p>Branch: {{ selected_branch }} | WOK: {{ selected_wok }}</p>
+    </div>
+
+    <!-- Stats Panel -->
+    <div class="stats-panel">
+        <h4>📊 Statistics</h4>
+        <div class="stats-item">
+            <span class="stats-label">Total ODPs:</span>
+            <span class="stats-value" id="total-odps">0</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-label">Total Ports:</span>
+            <span class="stats-value" id="total-ports">0</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-label">Used Ports:</span>
+            <span class="stats-value" id="used-ports">0</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-label">Available:</span>
+            <span class="stats-value" id="available-ports">0</span>
+        </div>
+        <div class="stats-item">
+            <span class="stats-label">Avg LOS:</span>
+            <span class="stats-value" id="avg-los">0 months</span>
+        </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="legend">
+        <h4>🗺️ Legend - LOS (Months)</h4>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #00ff00;"></div>
+            <span>0-3 Months</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #32cd32;"></div>
+            <span>4-6 Months</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #1e90ff;"></div>
+            <span>6-12 Months</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #000080;"></div>
+            <span>>12 Months</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background-color: #808080;"></div>
+            <span>No Go Live Date</span>
+        </div>
+    </div>
+
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+    <script>
+        // ODP data from Python backend
+        const odpData = {{ odp_points }};
+
+        // Initialize map with mobile-friendly settings
+        const map = L.map('map', {
+            zoomControl: true,
+            attributionControl: true,
+            tap: true,
+            touchZoom: true,
+            doubleClickZoom: true
+        }).setView([-6.2088, 106.8456], 10);
+
+        // Add tile layer with better mobile performance
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            tileSize: 256,
+            zoomOffset: 0,
+            detectRetina: true
+        }).addTo(map);
+
+        // Statistics variables
+        let totalOdps = 0;
+        let totalPorts = 0;
+        let usedPorts = 0;
+        let availablePorts = 0;
+        let totalLosMonths = 0;
+
+        // Function to get marker color based on LOS (Length of Service in months)
+        function getMarkerColor(losMonths, goliveDate) {
+            // Return grey if no go live date or if it's "N/A"
+            if (!goliveDate || goliveDate === 'N/A' || goliveDate === '' || losMonths === null) {
+                return '#808080';  // Grey for no go live date
+            }
+            
+            if (losMonths <= 3) return '#00ff00';        // Bright green for 0-3 months
+            if (losMonths <= 6) return '#32cd32';        // Green for 4-6 months  
+            if (losMonths <= 12) return '#1e90ff';       // Blue for 6-12 months
+            return '#000080';                            // Dark blue for >12 months
+        }
+
+        // Function to calculate LOS in months
+        function calculateLOS(goliveDate) {
+            if (!goliveDate || goliveDate === 'N/A' || goliveDate === '') return null;
+            
+            const golive = new Date(goliveDate);
+            // Check if the date is valid
+            if (isNaN(golive.getTime())) return null;
+            
+            const now = new Date();
+            const diffTime = Math.abs(now - golive);
+            const diffMonths = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 30.44)); // Average days per month
+            
+            return diffMonths;
+        }
+
+        // Function to create custom marker with mobile-friendly sizing
+        function createCustomMarker(color) {
+            const size = window.innerWidth <= 480 ? 14 : 12;
+            const borderWidth = window.innerWidth <= 480 ? 1 : 1; // Reduced border thickness
+            
+            return L.divIcon({
+                className: 'custom-div-icon',
+                html: `<div style="background-color:${color}; width: ${size}px; height: ${size}px; border-radius: 50%; border: ${borderWidth}px solid white; box-shadow: 0 3px 6px rgba(0,0,0,0.5);"></div>`,
+                iconSize: [size + borderWidth * 2, size + borderWidth * 2],
+                iconAnchor: [(size + borderWidth * 2) / 2, (size + borderWidth * 2) / 2]
+            });
+        }
+
+        // Process and add markers
+        if (odpData && odpData.length > 0) {
+            const bounds = L.latLngBounds();
+
+            odpData.forEach(odp => {
+                if (odp.latitude && odp.longitude) {
+                    totalOdps++;
+                    totalPorts += odp.is_total || 0;
+                    usedPorts += odp.used || 0;
+                    availablePorts += odp.avai || 0;
+
+                    // Calculate LOS (Length of Service) in months
+                    const losMonths = calculateLOS(odp.golive_date);
+                    if (losMonths !== null) {
+                        totalLosMonths += losMonths;
+                    }
+
+                    const markerColor = getMarkerColor(losMonths, odp.golive_date);
+                    
+                    const marker = L.marker([odp.latitude, odp.longitude], {
+                        icon: createCustomMarker(markerColor)
+                    }).addTo(map);
+
+                    // Create mobile-optimized popup content
+                    const popupContent = `
+                        <div class="popup-title">${odp.odp_name || 'Unknown ODP'}</div>
+                        <div class="popup-info">
+                            <span class="popup-label">Index:</span>
+                            <span class="popup-value">${odp.odp_index || 'N/A'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">STO:</span>
+                            <span class="popup-value">${odp.sto || 'Unknown'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Cluster:</span>
+                            <span class="popup-value">${odp.cluster || 'Unknown'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Total Ports:</span>
+                            <span class="popup-value">${odp.is_total || 0}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Used:</span>
+                            <span class="popup-value">${odp.used || 0}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Available:</span>
+                            <span class="popup-value">${odp.avai || 0}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">LOS:</span>
+                            <span class="popup-value">${losMonths !== null ? losMonths + ' months' : 'N/A'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Status:</span>
+                            <span class="popup-status">${odp.status || 'Unknown'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Go Live:</span>
+                            <span class="popup-value">${odp.golive_date || 'N/A'}</span>
+                        </div>
+                        <div class="popup-info">
+                            <span class="popup-label">Last Update:</span>
+                            <span class="popup-value">${odp.update_date || 'N/A'}</span>
+                        </div>
+                    `;
+
+                    marker.bindPopup(popupContent, {
+                        maxWidth: window.innerWidth <= 480 ? 200 : 300,
+                        closeButton: true,
+                        autoPan: true
+                    });
+                    bounds.extend([odp.latitude, odp.longitude]);
+                }
+            });
+
+            // Fit map to show all markers with mobile-friendly padding
+            if (bounds.isValid()) {
+                const padding = window.innerWidth <= 480 ? [40, 40] : [60, 60];
+                map.fitBounds(bounds, { padding: padding });
+            }
+        }
+
+        // Update statistics
+        const validLosCount = odpData.filter(odp => {
+            const losMonths = calculateLOS(odp.golive_date);
+            return losMonths !== null;
+        }).length;
+        
+        const avgLos = validLosCount > 0 ? (totalLosMonths / validLosCount) : 0;
+
+        document.getElementById('total-odps').textContent = totalOdps.toLocaleString();
+        document.getElementById('total-ports').textContent = totalPorts.toLocaleString();
+        document.getElementById('used-ports').textContent = usedPorts.toLocaleString();
+        document.getElementById('available-ports').textContent = availablePorts.toLocaleString();
+        document.getElementById('avg-los').textContent = avgLos.toFixed(1) + ' months';
+
+        // Add scale control
+        L.control.scale({
+            position: 'bottomleft',
+            metric: true,
+            imperial: false,
+            maxWidth: 100
+        }).addTo(map);
+
+        // Handle orientation changes on mobile
+        window.addEventListener('orientationchange', function() {
+            setTimeout(function() {
+                map.invalidateSize();
+            }, 100);
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            map.invalidateSize();
+        });
+
+        console.log(`Loaded ${totalOdps} ODP Black points on mobile-friendly map`);
+    </script>
+</body>
+</html>

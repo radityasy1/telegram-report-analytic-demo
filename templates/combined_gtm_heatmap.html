@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enhanced GTM Heatmap</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        #map { 
+            height: 100vh; 
+            width: 100%; 
+            position: relative;
+        }
+        
+        /* Enhanced popup styles */
+        .leaflet-popup-content {
+            margin: 8px 12px;
+            line-height: 1.4;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .popup-header {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 12px;
+            margin: -8px -12px 8px -12px;
+            border-radius: 4px 4px 0 0;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        
+        .popup-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 4px 0;
+            padding: 2px 0;
+        }
+        
+        .popup-label {
+            font-weight: 600;
+            color: #555;
+            margin-right: 8px;
+        }
+        
+        .popup-value {
+            color: #333;
+            text-align: right;
+            flex: 1;
+        }
+        
+        .popup-user {
+            color: #1976d2;
+            font-weight: 600;
+        }
+        
+        .popup-sf-code {
+            color: #d32f2f;
+            font-weight: 600;
+        }
+        
+        .popup-time {
+            color: #689f38;
+            font-size: 12px;
+        }
+        
+        .popup-distance {
+            color: #f57c00;
+            font-weight: 600;
+        }
+        
+        .popup-divider {
+            border-top: 1px solid #eee;
+            margin: 6px 0;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 280px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .info-panel p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .info-panel strong {
+            color: #333;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .legend-item span {
+            font-size: 11px;
+            color: #666;
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            z-index: 1000;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+        
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 500;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 0;
+            opacity: 0.8;
+        }
+        
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.08);
+            font-weight: bold;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .info-panel {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+                padding: 10px;
+                font-size: 13px;
+            }
+            
+            .info-panel.collapsed {
+                height: 40px;
+                overflow: hidden;
+            }
+            
+            .info-panel h3 {
+                font-size: 14px;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .info-panel h3:after {
+                content: '▼';
+                font-size: 10px;
+                transition: transform 0.3s ease;
+            }
+            
+            .info-panel.collapsed h3:after {
+                transform: rotate(-90deg);
+            }
+            
+            .legend {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 8px;
+            }
+            
+            .legend.collapsed {
+                height: 35px;
+                overflow: hidden;
+            }
+            
+            .legend h4 {
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 13px;
+            }
+            
+            .legend h4:after {
+                content: '▼';
+                font-size: 10px;
+                transition: transform 0.3s ease;
+            }
+            
+            .legend.collapsed h4:after {
+                transform: rotate(-90deg);
+            }
+            
+            .toggle-btn {
+                display: none;
+            }
+            
+            .watermark-container {
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(4, 1fr);
+            }
+            
+            .watermark-item {
+                font-size: 8px;
+            }
+            
+            .leaflet-popup-content {
+                font-size: 12px;
+            }
+            
+            .popup-header {
+                font-size: 13px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .info-panel {
+                font-size: 12px;
+            }
+            
+            .legend {
+                font-size: 11px;
+            }
+            
+            .legend-color {
+                width: 14px;
+                height: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div>🎯 Loading Enhanced GTM Analysis...</div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">Processing detailed data points...</div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <button class="toggle-btn" onclick="toggleLayers()">🔄 Toggle View</button>
+    
+    <div class="info-panel" id="infoPanel">
+        <h3>🎯 Enhanced GTM Analysis</h3>
+        <div class="info-content">
+            <p><strong>Area:</strong> <span id="locationDesc">{{ location_description }}</span></p>
+            <p><strong>Sessions:</strong> <span id="sessionCount">{{ session_count }}</span></p>
+            <p><strong>Points:</strong> <span id="pointCount">{{ point_count }}</span></p>
+            <p><strong>Radius:</strong> 300m</p>
+            <p><strong>Performance:</strong> <span id="perfMode">Optimized</span></p>
+        </div>
+    </div>
+    
+    <div class="legend" id="legend">
+        <h4>Legend</h4>
+        <div class="legend-content">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                <span>Center Points</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffff00;"></div>
+                <span>High Activity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00;"></div>
+                <span>Medium Activity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0000ff;"></div>
+                <span>Low Activity</span>
+            </div>
+            <div style="margin-top: 8px; font-size: 10px; color: #888;">
+                Each session has unique color<br>
+                Click points for user details
+            </div>
+        </div>
+    </div>
+    
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+
+    <script>
+        // Performance optimization constants
+        const CLUSTER_THRESHOLD = 100;
+        const HEATMAP_THRESHOLD = 500;
+        const SAMPLE_RATE = 0.7;
+        
+        let map, heatLayer, centerLayer, sessionLayer, clusteredMarkers;
+        let showHeat = true, showCenters = true, showSessions = true;
+        let performanceMode = 'auto';
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map', {
+                center: [{{ center_lat }}, {{ center_lon }}],
+                zoom: 16,
+                zoomControl: true,
+                scrollWheelZoom: true,
+                doubleClickZoom: true,
+                touchZoom: true,
+                preferCanvas: true
+            });
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 3,
+                updateWhenIdle: true,
+                updateWhenZooming: false,
+                keepBuffer: 2
+            }).addTo(map);
+        }
+        
+        // Data processing
+        let locationData = {{ location_data_json }};
+        let centerPoints = {{ center_points_json }};
+        let sessionColors = {{ session_colors_json }};
+        
+        // Enhanced popup creation function
+        function createEnhancedPopup(point) {
+            // Format date for better display
+            const date = new Date(point.timestamp);
+            const formattedDate = date.toLocaleDateString('id-ID', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit'
+            });
+            const formattedTime = date.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            // Handle missing or empty values
+            const sfCode = point.sf_code && point.sf_code !== 'N/A' && point.sf_code.trim() !== '' 
+                ? point.sf_code 
+                : 'Not Available';
+            const nikTsel = point.nik_tsel && point.nik_tsel !== 'N/A' && point.nik_tsel.trim() !== '' 
+                ? point.nik_tsel 
+                : 'Not Available';
+            
+            return `
+                <div class="popup-header">
+                    📍 GTM Session Details
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">👤 User:</span>
+                    <span class="popup-value popup-user">${point.username}</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">🏢 SF Code:</span>
+                    <span class="popup-value popup-sf-code">${sfCode}</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">🆔 NIK Tsel:</span>
+                    <span class="popup-value">${nikTsel}</span>
+                </div>
+                <div class="popup-divider"></div>
+                <div class="popup-row">
+                    <span class="popup-label">📅 Date:</span>
+                    <span class="popup-value popup-time">${formattedDate}</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">🕐 Time:</span>
+                    <span class="popup-value popup-time">${formattedTime}</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">📏 Distance:</span>
+                    <span class="popup-value popup-distance">${point.distance}m</span>
+                </div>
+                <div class="popup-row">
+                    <span class="popup-label">🔖 Session:</span>
+                    <span class="popup-value">${point.session_id}</span>
+                </div>
+            `;
+        }
+        
+        // Performance optimization
+        function optimizeData() {
+            const totalPoints = locationData.length;
+            
+            if (totalPoints > HEATMAP_THRESHOLD * 2) {
+                const sampleSize = Math.floor(totalPoints * SAMPLE_RATE);
+                const step = Math.floor(totalPoints / sampleSize);
+                locationData = locationData.filter((_, index) => index % step === 0);
+                performanceMode = 'high-performance';
+                document.getElementById('perfMode').textContent = 'High Performance Mode';
+            } else if (totalPoints > HEATMAP_THRESHOLD) {
+                performanceMode = 'optimized';
+                document.getElementById('perfMode').textContent = 'Optimized';
+            } else {
+                performanceMode = 'standard';
+                document.getElementById('perfMode').textContent = 'Standard';
+            }
+            
+            document.getElementById('pointCount').textContent = locationData.length;
+        }
+        
+        // Add center points layer
+        function addCenterPoints() {
+            if (centerLayer) map.removeLayer(centerLayer);
+            
+            centerLayer = L.layerGroup();
+            
+            centerPoints.forEach(function(point) {
+                L.circle([point.lat, point.lon], {
+                    color: '#ff0000',
+                    fillColor: '#ff0000',
+                    fillOpacity: 0.1,
+                    radius: 300,
+                    weight: 2
+                }).addTo(centerLayer).bindPopup('<b>' + point.name + '</b><br>Center Point<br>300m radius');
+                
+                L.marker([point.lat, point.lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [20, 32],
+                        iconAnchor: [10, 32],
+                        popupAnchor: [1, -28],
+                        shadowSize: [32, 32]
+                    })
+                }).addTo(centerLayer).bindPopup('<b>' + point.name + '</b><br>Center Point');
+            });
+            
+            if (showCenters) centerLayer.addTo(map);
+        }
+        
+        // Add heatmap layer
+        function addHeatmap() {
+            if (heatLayer) map.removeLayer(heatLayer);
+            
+            const heatmapData = locationData.map(function(point) {
+                return [point.lat, point.lon, 1];
+            });
+            
+            const totalPoints = locationData.length;
+            const radius = Math.min(25, Math.max(10, 20 - totalPoints / 100));
+            const blur = Math.min(20, Math.max(8, 15 - totalPoints / 200));
+            
+            heatLayer = L.heatLayer(heatmapData, {
+                radius: radius,
+                blur: blur,
+                maxZoom: 17,
+                max: 1.0,
+                gradient: {
+                    0.0: '#0000ff',
+                    0.2: '#00ffff', 
+                    0.4: '#00ff00',
+                    0.6: '#ffff00',
+                    0.8: '#ff8000',
+                    1.0: '#ff0000'
+                }
+            });
+            
+            if (showHeat) heatLayer.addTo(map);
+        }
+        
+        // Add session points with enhanced popups
+        function addSessionPoints() {
+            if (sessionLayer) map.removeLayer(sessionLayer);
+            if (clusteredMarkers) map.removeLayer(clusteredMarkers);
+            
+            if (locationData.length > CLUSTER_THRESHOLD) {
+                clusteredMarkers = L.markerClusterGroup({
+                    chunkedLoading: true,
+                    chunkInterval: 200,
+                    chunkDelay: 50,
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    maxClusterRadius: 50
+                });
+                
+                locationData.forEach(function(point) {
+                    const marker = L.circleMarker([point.lat, point.lon], {
+                        radius: 4,
+                        fillColor: point.color,
+                        color: point.color,
+                        weight: 1,
+                        opacity: 0.8,
+                        fillOpacity: 0.7
+                    }).bindPopup(createEnhancedPopup(point), {
+                        maxWidth: 300,
+                        className: 'enhanced-popup'
+                    });
+                    
+                    clusteredMarkers.addLayer(marker);
+                });
+                
+                if (showSessions) clusteredMarkers.addTo(map);
+            } else {
+                sessionLayer = L.layerGroup();
+                
+                locationData.forEach(function(point) {
+                    L.circleMarker([point.lat, point.lon], {
+                        radius: 4,
+                        fillColor: point.color,
+                        color: point.color,
+                        weight: 1,
+                        opacity: 0.8,
+                        fillOpacity: 0.7
+                    }).bindPopup(createEnhancedPopup(point), {
+                        maxWidth: 300,
+                        className: 'enhanced-popup'
+                    }).addTo(sessionLayer);
+                });
+                
+                if (showSessions) sessionLayer.addTo(map);
+            }
+        }
+        
+        // Toggle layer visibility
+        function toggleLayers() {
+            if (showHeat && showCenters && showSessions) {
+                showHeat = true;
+                showCenters = false;
+                showSessions = false;
+            } else if (showHeat && !showCenters && !showSessions) {
+                showHeat = false;
+                showCenters = true;
+                showSessions = true;
+            } else {
+                showHeat = true;
+                showCenters = true;
+                showSessions = true;
+            }
+            
+            updateLayers();
+        }
+        
+        // Update layer visibility
+        function updateLayers() {
+            if (showHeat && heatLayer) heatLayer.addTo(map);
+            else if (heatLayer) map.removeLayer(heatLayer);
+            
+            if (showCenters && centerLayer) centerLayer.addTo(map);
+            else if (centerLayer) map.removeLayer(centerLayer);
+            
+            if (showSessions) {
+                if (clusteredMarkers) clusteredMarkers.addTo(map);
+                if (sessionLayer) sessionLayer.addTo(map);
+            } else {
+                if (clusteredMarkers) map.removeLayer(clusteredMarkers);
+                if (sessionLayer) map.removeLayer(sessionLayer);
+            }
+        }
+        
+        // Mobile panel collapse functionality
+        function setupMobilePanels() {
+            const infoPanel = document.getElementById('infoPanel');
+            const legend = document.getElementById('legend');
+            
+            if (window.innerWidth <= 768) {
+                const infoHeader = infoPanel.querySelector('h3');
+                const legendHeader = legend.querySelector('h4');
+                
+                infoHeader.addEventListener('click', function() {
+                    infoPanel.classList.toggle('collapsed');
+                });
+                
+                legendHeader.addEventListener('click', function() {
+                    legend.classList.toggle('collapsed');
+                });
+                
+                infoPanel.classList.add('collapsed');
+                legend.classList.add('collapsed');
+            } else {
+                infoPanel.classList.remove('collapsed');
+                legend.classList.remove('collapsed');
+            }
+        }
+        
+        // Initialize everything
+        function init() {
+            initMap();
+            optimizeData();
+            addCenterPoints();
+            addHeatmap();
+            addSessionPoints();
+            
+            const group = new L.featureGroup();
+            
+            locationData.forEach(function(point) {
+                group.addLayer(L.marker([point.lat, point.lon]));
+            });
+            
+            centerPoints.forEach(function(point) {
+                group.addLayer(L.marker([point.lat, point.lon]));
+            });
+            
+            if (group.getLayers().length > 0) {
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+            
+            setupMobilePanels();
+            document.getElementById('loading').classList.add('hidden');
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.invalidateSize();
+                setupMobilePanels();
+            }
+        });
+        
+        // Initialize when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>

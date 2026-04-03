@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>GTM Live Location Heatmap</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        #map { 
+            height: 100vh; 
+            width: 100%; 
+            position: relative;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 280px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .info-panel h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        
+        .info-panel p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .info-panel strong {
+            color: #333;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 1000;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 4px 0;
+        }
+        
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        
+        .legend-item span {
+            font-size: 11px;
+            color: #666;
+        }
+        
+        .toggle-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            z-index: 1000;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s ease;
+        }
+        
+        .toggle-btn:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+        
+        .watermark-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 500;
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            grid-template-rows: repeat(6, 1fr);
+            gap: 0;
+            opacity: 0.8;
+        }
+        
+        .watermark-item {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(0, 0, 0, 0.08);
+            font-weight: bold;
+            transform: rotate(-45deg);
+            white-space: nowrap;
+        }
+        
+        /* Mobile optimizations */
+        @media (max-width: 768px) {
+            .info-panel {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+                padding: 10px;
+                font-size: 13px;
+            }
+            
+            .info-panel.collapsed {
+                height: 40px;
+                overflow: hidden;
+            }
+            
+            .info-panel h3 {
+                font-size: 14px;
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+            
+            .info-panel h3:after {
+                content: '▼';
+                font-size: 10px;
+                transition: transform 0.3s ease;
+            }
+            
+            .info-panel.collapsed h3:after {
+                transform: rotate(-90deg);
+            }
+            
+            .legend {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                padding: 8px;
+            }
+            
+            .legend.collapsed {
+                height: 35px;
+                overflow: hidden;
+            }
+            
+            .legend h4 {
+                cursor: pointer;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 13px;
+            }
+            
+            .legend h4:after {
+                content: '▼';
+                font-size: 10px;
+                transition: transform 0.3s ease;
+            }
+            
+            .legend.collapsed h4:after {
+                transform: rotate(-90deg);
+            }
+            
+            .toggle-btn {
+                display: none;
+            }
+            
+            .watermark-container {
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(4, 1fr);
+            }
+            
+            .watermark-item {
+                font-size: 8px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .info-panel {
+                font-size: 12px;
+            }
+            
+            .legend {
+                font-size: 11px;
+            }
+            
+            .legend-color {
+                width: 14px;
+                height: 14px;
+            }
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            z-index: 2000;
+            text-align: center;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading" class="loading">
+        <div>📍 Loading GTM Heatmap...</div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">{{ point_count }} points</div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <button class="toggle-btn" onclick="toggleLayers()">🔄 Toggle View</button>
+    
+    <div class="info-panel" id="infoPanel">
+        <h3>📍 GTM Live Location</h3>
+        <div class="info-content">
+            <p><strong>Session:</strong> {{ session_id }}</p>
+            <p><strong>User:</strong> {{ username }}</p>
+            <p><strong>Points:</strong> {{ point_count }}</p>
+            <p><strong>Duration:</strong> {{ duration }}</p>
+            <p><strong>Distance:</strong> <span id="totalDistance">Calculating...</span></p>
+        </div>
+    </div>
+    
+    <div class="legend" id="legend">
+        <h4>Legend</h4>
+        <div class="legend-content">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                <span>High Activity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffff00;"></div>
+                <span>Medium Activity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #00ff00;"></div>
+                <span>Low Activity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #0000ff;"></div>
+                <span>Start Point</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff0000;"></div>
+                <span>End Point</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="watermark-container">
+        {{ watermark_container }}
+    </div>
+
+    <script>
+        // Performance optimization variables
+        const CLUSTER_THRESHOLD = 50; // Use clustering if more than 50 points
+        const SIMPLIFY_THRESHOLD = 200; // Simplify path if more than 200 points
+        
+        let map, heatLayer, pathLayer, markersLayer, clusteredMarkers;
+        let showHeat = true, showPath = true, showMarkers = false;
+        
+        // Initialize map
+        function initMap() {
+            map = L.map('map', {
+                center: [{{ center_lat }}, {{ center_lon }}],
+                zoom: 15,
+                zoomControl: true,
+                scrollWheelZoom: true,
+                doubleClickZoom: true,
+                touchZoom: true
+            });
+            
+            // Add tile layer with better mobile performance
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+                attribution: '© <a href="https://carto.com/attributions">CARTO</a> © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                minZoom: 3,
+                updateWhenIdle: true,
+                updateWhenZooming: false,
+                keepBuffer: 2
+            }).addTo(map);
+        }
+        
+        // Location data
+        const locationData = {{ location_data_json }};
+        const totalPoints = locationData.length;
+        
+        // Calculate total distance
+        function calculateDistance() {
+            if (locationData.length < 2) return 0;
+            
+            let totalDistance = 0;
+            for (let i = 1; i < locationData.length; i++) {
+                const prev = locationData[i-1];
+                const curr = locationData[i];
+                const distance = map.distance([prev.lat, prev.lon], [curr.lat, curr.lon]);
+                totalDistance += distance;
+            }
+            
+            return totalDistance;
+        }
+        
+        // Simplify path for performance
+        function simplifyPath(points, tolerance = 0.0001) {
+            if (points.length <= SIMPLIFY_THRESHOLD) return points;
+            
+            // Douglas-Peucker simplification algorithm (simplified version)
+            const simplified = [points[0]];
+            let lastAdded = 0;
+            
+            for (let i = 2; i < points.length; i += Math.ceil(points.length / 100)) {
+                simplified.push(points[i]);
+                lastAdded = i;
+            }
+            
+            if (lastAdded !== points.length - 1) {
+                simplified.push(points[points.length - 1]);
+            }
+            
+            return simplified;
+        }
+        
+        // Add heatmap layer
+        function addHeatmap() {
+            if (heatLayer) map.removeLayer(heatLayer);
+            
+            const heatmapData = locationData.map(function(point) {
+                return [point.lat, point.lon, 1];
+            });
+            
+            heatLayer = L.heatLayer(heatmapData, {
+                radius: Math.min(25, Math.max(15, 30 - totalPoints / 50)),
+                blur: Math.min(20, Math.max(10, 25 - totalPoints / 100)),
+                maxZoom: 17,
+                max: 1.0,
+                gradient: {
+                    0.0: '#0000ff',
+                    0.2: '#00ffff', 
+                    0.4: '#00ff00',
+                    0.6: '#ffff00',
+                    0.8: '#ff8000',
+                    1.0: '#ff0000'
+                }
+            });
+            
+            if (showHeat) heatLayer.addTo(map);
+        }
+        
+        // Add path layer
+        function addPath() {
+            if (pathLayer) map.removeLayer(pathLayer);
+            
+            if (locationData.length > 1) {
+                const pathCoords = simplifyPath(locationData).map(function(point) {
+                    return [point.lat, point.lon];
+                });
+                
+                pathLayer = L.polyline(pathCoords, {
+                    color: '#2196F3',
+                    weight: Math.max(2, Math.min(4, 6 - totalPoints / 100)),
+                    opacity: 0.8,
+                    smoothFactor: 1.0
+                });
+                
+                if (showPath) pathLayer.addTo(map);
+            }
+        }
+        
+        // Add markers with clustering
+        function addMarkers() {
+            if (markersLayer) map.removeLayer(markersLayer);
+            if (clusteredMarkers) map.removeLayer(clusteredMarkers);
+            
+            if (totalPoints > CLUSTER_THRESHOLD) {
+                // Use clustering for many points
+                clusteredMarkers = L.markerClusterGroup({
+                    chunkedLoading: true,
+                    chunkInterval: 200,
+                    chunkDelay: 50
+                });
+                
+                // Add only start and end markers to cluster
+                if (locationData.length > 0) {
+                    const startPoint = locationData[0];
+                    const endPoint = locationData[locationData.length - 1];
+                    
+                    const startMarker = L.marker([startPoint.lat, startPoint.lon])
+                        .bindPopup(`<b>Start</b><br>${startPoint.timestamp}`);
+                    
+                    const endMarker = L.marker([endPoint.lat, endPoint.lon])
+                        .bindPopup(`<b>End</b><br>${endPoint.timestamp}`);
+                    
+                    clusteredMarkers.addLayer(startMarker);
+                    if (locationData.length > 1) {
+                        clusteredMarkers.addLayer(endMarker);
+                    }
+                }
+                
+                if (showMarkers) clusteredMarkers.addTo(map);
+            } else {
+                // Regular markers for fewer points
+                markersLayer = L.layerGroup();
+                
+                if (locationData.length > 0) {
+                    const startPoint = locationData[0];
+                    const endPoint = locationData[locationData.length - 1];
+                    
+                    // Start marker
+                    L.marker([startPoint.lat, startPoint.lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [20, 32],
+                            iconAnchor: [10, 32],
+                            popupAnchor: [1, -28],
+                            shadowSize: [32, 32]
+                        })
+                    }).bindPopup(`<b>Start</b><br>${startPoint.timestamp}`).addTo(markersLayer);
+                    
+                    // End marker
+                    if (locationData.length > 1) {
+                        L.marker([endPoint.lat, endPoint.lon], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                iconSize: [20, 32],
+                                iconAnchor: [10, 32],
+                                popupAnchor: [1, -28],
+                                shadowSize: [32, 32]
+                            })
+                        }).bindPopup(`<b>End</b><br>${endPoint.timestamp}`).addTo(markersLayer);
+                    }
+                }
+                
+                if (showMarkers) markersLayer.addTo(map);
+            }
+        }
+        
+        // Toggle layer visibility
+        function toggleLayers() {
+            if (showHeat && showPath) {
+                // Show only heatmap
+                showHeat = true;
+                showPath = false;
+                showMarkers = false;
+            } else if (showHeat && !showPath) {
+                // Show only path
+                showHeat = false;
+                showPath = true;
+                showMarkers = true;
+            } else {
+                // Show all
+                showHeat = true;
+                showPath = true;
+                showMarkers = false;
+            }
+            
+            updateLayers();
+        }
+        
+        // Update layer visibility
+        function updateLayers() {
+            if (showHeat && heatLayer) heatLayer.addTo(map);
+            else if (heatLayer) map.removeLayer(heatLayer);
+            
+            if (showPath && pathLayer) pathLayer.addTo(map);
+            else if (pathLayer) map.removeLayer(pathLayer);
+            
+            if (showMarkers) {
+                if (clusteredMarkers) clusteredMarkers.addTo(map);
+                if (markersLayer) markersLayer.addTo(map);
+            } else {
+                if (clusteredMarkers) map.removeLayer(clusteredMarkers);
+                if (markersLayer) map.removeLayer(markersLayer);
+            }
+        }
+        
+        // Mobile panel collapse functionality
+        function setupMobilePanels() {
+            const infoPanel = document.getElementById('infoPanel');
+            const legend = document.getElementById('legend');
+            
+            if (window.innerWidth <= 768) {
+                infoPanel.querySelector('h3').addEventListener('click', function() {
+                    infoPanel.classList.toggle('collapsed');
+                });
+                
+                legend.querySelector('h4').addEventListener('click', function() {
+                    legend.classList.toggle('collapsed');
+                });
+                
+                // Start with panels collapsed on mobile
+                infoPanel.classList.add('collapsed');
+                legend.classList.add('collapsed');
+            }
+        }
+        
+        // Initialize everything
+        function init() {
+            initMap();
+            addHeatmap();
+            addPath();
+            addMarkers();
+            
+            // Fit map to show all points
+            if (locationData.length > 0) {
+                const group = new L.featureGroup();
+                locationData.forEach(function(point) {
+                    group.addLayer(L.marker([point.lat, point.lon]));
+                });
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+            
+            // Calculate and display distance
+            const distance = calculateDistance();
+            const distanceText = distance > 1000 ? 
+                (distance / 1000).toFixed(2) + ' km' : 
+                distance.toFixed(0) + ' m';
+            document.getElementById('totalDistance').textContent = distanceText;
+            
+            // Setup mobile panels
+            setupMobilePanels();
+            
+            // Hide loading
+            document.getElementById('loading').classList.add('hidden');
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (map) {
+                map.invalidateSize();
+                setupMobilePanels();
+            }
+        });
+        
+        // Initialize when page loads
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
