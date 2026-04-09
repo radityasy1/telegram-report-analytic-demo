@@ -268,12 +268,6 @@ This bot uses synthetic data only and should never attempt database connections.
 
 ---
 
-## License
-
-Proprietary - PT Telekomunikasi Selular
-
----
-
 ## Contact
 
 For issues and feature requests, please open an issue on GitHub or contact the repository maintainer.
